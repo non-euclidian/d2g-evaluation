@@ -59,22 +59,22 @@ class TestStringUtils:
             StringUtils.tokenize_by_char_ngrams(text="hello", n=-1)
 
     @pytest.mark.parametrize(("raw_input", "n", "expected_output"), TEST_TOKENIZE_BY_NCHARS)
-    def test_tokenize_by_nchars(self, *, raw_input: str, n: int, expected_output: list[str]):
+    def test_tokenize_by_nchars(self, *, raw_input: str, n: int, expected_output: list[str]) -> None:
         result = StringUtils.tokenize_by_nchars(text=raw_input, n=n)
         assert result == expected_output, f"Expected {expected_output}, but got {result} for input {raw_input}"
 
-    def test_tokenize_by_nchars_invalid_type(self):
+    def test_tokenize_by_nchars_invalid_type(self) -> None:
         with pytest.raises(TypeError, match="Expected str, but got"):
-            StringUtils.tokenize_by_nchars(text=123, n=3)
+            StringUtils.tokenize_by_nchars(text=123, n=3)  # type: ignore
 
         with pytest.raises(TypeError, match="Expected str, but got"):
-            StringUtils.tokenize_by_nchars(text=123.45, n=3)
+            StringUtils.tokenize_by_nchars(text=123.45, n=3)  # type: ignore
 
         with pytest.raises(TypeError, match="Expected str, but got"):
-            StringUtils.tokenize_by_nchars(text=["hello"], n=3)
+            StringUtils.tokenize_by_nchars(text=["hello"], n=3)  # type: ignore
 
         with pytest.raises(TypeError, match="Expected str, but got"):
-            StringUtils.tokenize_by_nchars(text={"hello"}, n=3)
+            StringUtils.tokenize_by_nchars(text={"hello"}, n=3)  # type: ignore
 
         with pytest.raises(ValueError, match="n must be greater than 0, but got"):
             StringUtils.tokenize_by_nchars(text="hello", n=0)
