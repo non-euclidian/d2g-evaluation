@@ -1,692 +1,537 @@
-import pytest
+from dataclasses import dataclass
 
 from d2g_evaluation.text_preprocessing.text_preprocessing_core import (
     ImplementedStringPreprocessing,
     ImplementedTokenization,
 )
 
-TEST_DECODE_UNICODE_ESCAPES = [
-    pytest.param(
-        "hello\nworld",
-        "hello\nworld",
-        id="newline",
+
+@dataclass(frozen=True, slots=True)
+class DecodeUnicodeTestCase:
+    test_name: str
+    input_text: str
+    expected_text: str
+
+
+TEST_DECODE_UNICODE_ESCAPES: list[DecodeUnicodeTestCase] = [
+    DecodeUnicodeTestCase(test_name="newline", input_text="hello\nworld", expected_text="hello\nworld"),
+    DecodeUnicodeTestCase(test_name="tab", input_text="hello\tworld", expected_text="hello\tworld"),
+    DecodeUnicodeTestCase(test_name="escaped-backslash-n", input_text="hello\\nworld", expected_text="hello\nworld"),
+    DecodeUnicodeTestCase(test_name="unicode-heart", input_text="emoji:\u2764", expected_text="emoji:❤"),
+    DecodeUnicodeTestCase(test_name="unicode-emoji", input_text="emoji:\U0001f600", expected_text="emoji:😀"),
+    DecodeUnicodeTestCase(test_name="hex-H-i", input_text="\x48\x69", expected_text="Hi"),
+    DecodeUnicodeTestCase(test_name="octal-ABC", input_text="\101\102\103", expected_text="ABC"),
+    DecodeUnicodeTestCase(
+        test_name="mixed-newlines", input_text="line1\\nline2\nline3", expected_text="""line1\nline2\nline3"""
     ),
-    pytest.param(
-        "hello\tworld",
-        "hello\tworld",
-        id="tab",
-    ),
-    pytest.param(
-        "hello\\nworld",
-        "hello\nworld",
-        id="escaped-backslash-n",
-    ),
-    pytest.param(
-        "emoji:\u2764",
-        "emoji:❤",
-        id="unicode-heart",
-    ),
-    pytest.param(
-        "emoji:\U0001f600",
-        "emoji:😀",
-        id="unicode-emoji",
-    ),
-    pytest.param(
-        "\x48\x69",
-        "Hi",
-        id="hex-H-i",
-    ),
-    pytest.param(
-        "\101\102\103",
-        "ABC",
-        id="octal-ABC",
-    ),
-    pytest.param(
-        "line1\\nline2\nline3",
-        """line1\nline2\nline3""",
-        id="mixed-newlines",
-    ),
-    pytest.param(
-        "slash:\\\\",
-        "slash:\\",
-        id="escaped-backslash",
-    ),
+    DecodeUnicodeTestCase(test_name="escaped-backslash", input_text="slash:\\\\", expected_text="slash:\\"),
     # multilingual
-    pytest.param(
-        "привет\nмир",  # noqa: RUF001
-        "привет\nмир",  # noqa: RUF001
-        id="cyrillic",
+    DecodeUnicodeTestCase(test_name="cyrillic", input_text="привет\nмир", expected_text="привет\nмир"),  # noqa: RUF001
+    DecodeUnicodeTestCase(test_name="japanese", input_text="こんにちは\n世界", expected_text="こんにちは\n世界"),
+    DecodeUnicodeTestCase(test_name="chinese", input_text="你好\n世界", expected_text="你好\n世界"),
+    DecodeUnicodeTestCase(test_name="hebrew", input_text="שָׁלוֹם\nעוֹלָם", expected_text="שָׁלוֹם\nעוֹלָם"),  # noqa: RUF001
+    DecodeUnicodeTestCase(test_name="arabic", input_text="مرحبا\nبالعالم", expected_text="مرحبا\nبالعالم"),  # noqa: RUF001
+    DecodeUnicodeTestCase(test_name="newline", input_text="hello\\nworld", expected_text="hello\nworld"),
+    DecodeUnicodeTestCase(test_name="tab", input_text="hello\\tworld", expected_text="hello\tworld"),
+    DecodeUnicodeTestCase(test_name="carriage", input_text="hello\\rworld", expected_text="hello\rworld"),
+    DecodeUnicodeTestCase(test_name="hex", input_text="hello\\x41world", expected_text="helloAworld"),
+    DecodeUnicodeTestCase(test_name="unicode", input_text="hello\\u0041world", expected_text="helloAworld"),
+    DecodeUnicodeTestCase(test_name="unicode_full", input_text="hello\\U00000041world", expected_text="helloAworld"),
+    DecodeUnicodeTestCase(test_name="emoji", input_text="hello\\U0001F600world", expected_text="hello😀world"),
+    DecodeUnicodeTestCase(test_name="empty_string", input_text="", expected_text=""),
+    DecodeUnicodeTestCase(test_name="newline+tab", input_text="hello\\nworld\\t", expected_text="hello\nworld\t"),
+    DecodeUnicodeTestCase(test_name="newline+carriage", input_text="hello\\nworld\\r", expected_text="hello\nworld\r"),
+    DecodeUnicodeTestCase(test_name="newline+hex", input_text="hello\\nworld\\x41", expected_text="hello\nworldA"),
+    DecodeUnicodeTestCase(
+        test_name="newline+unicode", input_text="hello\\nworld\\u0041", expected_text="hello\nworldA"
     ),
-    pytest.param(
-        "こんにちは\n世界",
-        "こんにちは\n世界",
-        id="japanese",
+    DecodeUnicodeTestCase(
+        test_name="newline+unicode_full", input_text="hello\\nworld\\U00000041", expected_text="hello\nworldA"
     ),
-    pytest.param(
-        "你好\n世界",
-        "你好\n世界",
-        id="chinese",
-    ),
-    pytest.param(
-        "שָׁלוֹם\nעוֹלָם",  # noqa: RUF001
-        "שָׁלוֹם\nעוֹלָם",  # noqa: RUF001
-        id="hebrew",
-    ),
-    pytest.param(
-        "مرحبا\nبالعالم",  # noqa: RUF001
-        "مرحبا\nبالعالم",  # noqa: RUF001
-        id="arabic",
-    ),
-    pytest.param(
-        "hello\\nworld",
-        "hello\nworld",
-        id="newline",
-    ),
-    pytest.param(
-        "hello\\tworld",
-        "hello\tworld",
-        id="tab",
-    ),
-    pytest.param(
-        "hello\\rworld",
-        "hello\rworld",
-        id="carriage",
-    ),
-    pytest.param(
-        "hello\\x41world",
-        "helloAworld",
-        id="hex",
-    ),
-    pytest.param(
-        "hello\\u0041world",
-        "helloAworld",
-        id="unicode",
-    ),
-    pytest.param(
-        "hello\\U00000041world",
-        "helloAworld",
-        id="unicode_full",
-    ),
-    pytest.param(
-        "hello\\U0001F600world",
-        "hello😀world",
-        id="emoji",
-    ),
-    pytest.param(
-        "",
-        "",
-        id="empty_string",
-    ),
-    pytest.param(
-        "hello\\nworld\\t",
-        "hello\nworld\t",
-        id="newline+tab",
-    ),
-    pytest.param(
-        "hello\\nworld\\r",
-        "hello\nworld\r",
-        id="newline+carriage",
-    ),
-    pytest.param(
-        "hello\\nworld\\x41",
-        "hello\nworldA",
-        id="newline+hex",
-    ),
-    pytest.param(
-        "hello\\nworld\\u0041",
-        "hello\nworldA",
-        id="newline+unicode",
-    ),
-    pytest.param(
-        "hello\\nworld\\U00000041",
-        "hello\nworldA",
-        id="newline+unicode_full",
-    ),
-    pytest.param(
-        "hello\\nworld\\U0001F600",
-        "hello\nworld😀",
-        id="newline+emoji",
-    ),
-]
-
-TEST_NORMALIZE_WHITESPACES = [
-    pytest.param(
-        "   hello   world   ",
-        "hello world",
-        " ",
-        True,
-        id="space+strip_True",
-    ),
-    pytest.param(
-        "   hello   world   ",
-        " hello world ",
-        " ",
-        False,
-        id="space+strip_False",
-    ),
-    pytest.param(
-        "   hello   world   ",
-        "helloworld",
-        "",
-        True,
-        id="empty_string+strip_True",
-    ),
-    pytest.param(
-        "   hello   world   ",
-        "helloworld",
-        "",
-        False,
-        id="empty_string+strip_False",
-    ),
-    pytest.param(
-        "",
-        "",
-        " ",
-        True,
-        id="input_empty_string_+space+strip_True",
-    ),
-    pytest.param(
-        "",
-        "",
-        " ",
-        False,
-        id="input_empty_string_+space+strip_False",
-    ),
-    pytest.param(
-        " ",
-        "",
-        " ",
-        True,
-        id="input_space_+space+strip_True",
-    ),
-    pytest.param(
-        " ",
-        " ",
-        " ",
-        False,
-        id="input_space_+space+strip_False",
-    ),
-    pytest.param(
-        " ",
-        "",
-        " ",
-        True,
-        id="input_space_+space+strip_True",
-    ),
-    pytest.param(
-        " ",
-        " ",
-        " ",
-        False,
-        id="input_space_+space+strip_False",
-    ),
-    pytest.param(
-        "   hello   world   ",
-        "-hello-world-",
-        "-",
-        True,
-        id="dash+strip_True",
-    ),
-    pytest.param(
-        "   hello   world   ",
-        "-hello-world-",
-        "-",
-        False,
-        id="dash+strip_False",
+    DecodeUnicodeTestCase(
+        test_name="newline+emoji", input_text="hello\\nworld\\U0001F600", expected_text="hello\nworld😀"
     ),
 ]
 
 
-TEST_NORMALIZE_STRING = [
-    pytest.param("hello   world", "hello world", " ", True, id="space+strip_True"),
-    pytest.param("  hello   world  ", " hello world ", " ", False, id="space+strip_False"),
-    pytest.param("  hello   world  ", "helloworld", "", True, id="empty_string+strip_True"),
-    pytest.param("  hello   world  ", "helloworld", "", False, id="empty_string+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hi world", " ", True, id="space+strip_True"),
-    pytest.param("   hi\\n\\tworld   ", " hi world ", " ", False, id="space+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hiworld", "", True, id="empty_string+strip_True"),
-    pytest.param("  hi\\n\\tworld ", "hiworld", "", False, id="empty_string+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hi world", " ", True, id="space+strip_True"),
-    pytest.param("   hi\\n\\tworld   ", " hi world ", " ", False, id="space+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hiworld", "", True, id="empty_string+strip_True"),
-    pytest.param("  hi\\n\\tworld ", "hiworld", "", False, id="empty_string+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hi world", " ", True, id="space+strip_True"),
-    pytest.param("   hi\\n\\tworld   ", " hi world ", " ", False, id="space+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hiworld", "", True, id="empty_string+strip_True"),
-    pytest.param("  hi\\n\\tworld ", "hiworld", "", False, id="empty_string+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hi world", " ", True, id="space+strip_True"),
-    pytest.param("   hi\\n\\tworld   ", " hi world ", " ", False, id="space+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hiworld", "", True, id="empty_string+strip_True"),
-]
+@dataclass(frozen=True, slots=True)
+class NormalizeWhitespacesTestCase:
+    test_name: str
+    input_text: str
+    expected_text: str
+    replacement: str
+    strip: bool
 
 
-TEST_NORMALIZE_STRING = [
-    pytest.param("hello   world", "hello world", " ", True, id="space+strip_True"),
-    pytest.param("  hello   world  ", " hello world ", " ", False, id="space+strip_False"),
-    pytest.param("  hello   world  ", "helloworld", "", True, id="empty_string+strip_True"),
-    pytest.param("  hello   world  ", "helloworld", "", False, id="empty_string+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hi world", " ", True, id="space+strip_True"),
-    pytest.param("   hi\\n\\tworld   ", " hi world ", " ", False, id="space+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hiworld", "", True, id="empty_string+strip_True"),
-    pytest.param("  hi\\n\\tworld ", "hiworld", "", False, id="empty_string+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hi world", " ", True, id="space+strip_True"),
-    pytest.param("   hi\\n\\tworld   ", " hi world ", " ", False, id="space+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hiworld", "", True, id="empty_string+strip_True"),
-    pytest.param("  hi\\n\\tworld ", "hiworld", "", False, id="empty_string+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hi world", " ", True, id="space+strip_True"),
-    pytest.param("   hi\\n\\tworld   ", " hi world ", " ", False, id="space+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hiworld", "", True, id="empty_string+strip_True"),
-    pytest.param("  hi\\n\\tworld ", "hiworld", "", False, id="empty_string+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hi world", " ", True, id="space+strip_True"),
-    pytest.param("   hi\\n\\tworld   ", " hi world ", " ", False, id="space+strip_False"),
-    pytest.param(" hi\\n\\tworld ", "hiworld", "", True, id="empty_string+strip_True"),
-]
-
-
-TEST_TOKENIZE_BY_CHAR_NGRAMS = [
-    pytest.param(
-        "hello my name",
-        1,
-        ["h", "e", "l", "l", "o", " ", "m", "y", " ", "n", "a", "m", "e"],
-        id="1_char_ngrams",
+TEST_NORMALIZE_WHITESPACES: list[NormalizeWhitespacesTestCase] = [
+    NormalizeWhitespacesTestCase(
+        test_name="space+strip_True",
+        input_text="   hello   world   ",
+        expected_text="hello world",
+        replacement=" ",
+        strip=True,
     ),
-    pytest.param(
-        "hello my name",
-        2,
-        ["he", "el", "ll", "lo", "o ", " m", "my", "y ", " n", "na", "am", "me"],
-        id="2_char_ngrams",
+    NormalizeWhitespacesTestCase(
+        test_name="space+strip_False",
+        input_text="   hello   world   ",
+        expected_text=" hello world ",
+        replacement=" ",
+        strip=False,
     ),
-    pytest.param(
-        "hello my name",
-        3,
-        ["hel", "ell", "llo", "lo ", "o m", " my", "my ", "y n", " na", "nam", "ame"],
-        id="3_char_ngrams",
+    NormalizeWhitespacesTestCase(
+        test_name="empty_string+strip_True",
+        input_text="   hello   world   ",
+        expected_text="helloworld",
+        replacement="",
+        strip=True,
     ),
-    pytest.param(
-        "hello my name",
-        4,
-        ["hell", "ello", "llo ", "lo m", "o my", " my ", "my n", "y na", " nam", "name"],
-        id="4_char_ngrams",
+    NormalizeWhitespacesTestCase(
+        test_name="empty_string+strip_False",
+        input_text="   hello   world   ",
+        expected_text="helloworld",
+        replacement="",
+        strip=False,
     ),
-    pytest.param(
-        "hello my name",
-        5,
-        ["hello", "ello ", "llo m", "lo my", "o my ", " my n", "my na", "y nam", " name"],
-        id="5_char_ngrams",
+    NormalizeWhitespacesTestCase(
+        test_name="input_empty_string_+space+strip_True", input_text="", expected_text="", replacement=" ", strip=True
     ),
-    pytest.param(
-        "",
-        1,
-        [],
-        id="empty_string_1_char_ngrams",
+    NormalizeWhitespacesTestCase(
+        test_name="input_empty_string_+space+strip_False", input_text="", expected_text="", replacement=" ", strip=False
     ),
-    pytest.param(
-        "",
-        2,
-        [],
-        id="empty_string_2_char_ngrams",
+    NormalizeWhitespacesTestCase(
+        test_name="input_space_+space+strip_True", input_text=" ", expected_text="", replacement=" ", strip=True
     ),
-    pytest.param(
-        "",
-        3,
-        [],
-        id="empty_string_3_char_ngrams",
+    NormalizeWhitespacesTestCase(
+        test_name="input_space_+space+strip_False", input_text=" ", expected_text=" ", replacement=" ", strip=False
     ),
-    pytest.param(
-        "",
-        4,
-        [],
-        id="empty_string_4_char_ngrams",
+    NormalizeWhitespacesTestCase(
+        test_name="dash+strip_True",
+        input_text="   hello   world   ",
+        expected_text="-hello-world-",
+        replacement="-",
+        strip=True,
     ),
-    pytest.param(
-        "",
-        5,
-        [],
-        id="empty_string_5_char_ngrams",
-    ),
-    pytest.param(
-        "",
-        1000,
-        [],
-        id="empty_string_1000_char_ngrams",
-    ),
-    pytest.param(
-        "wine",
-        1,
-        ["w", "i", "n", "e"],
-        id="1_char_ngrams_wine",
-    ),
-    pytest.param(
-        "wine",
-        2,
-        ["wi", "in", "ne"],
-        id="2_char_ngrams_wine",
-    ),
-    pytest.param(
-        "wine",
-        3,
-        ["win", "ine"],
-        id="3_char_ngrams_wine",
-    ),
-    pytest.param(
-        "wine",
-        4,
-        ["wine"],
-        id="4_char_ngrams_wine",
-    ),
-    pytest.param(
-        "wine",
-        5,
-        ["wine"],
-        id="5_char_ngrams_wine",
-    ),
-    pytest.param(
-        "wine",
-        1000,
-        ["wine"],
-        id="1000_char_ngrams_wine",
-    ),
-    pytest.param(
-        "     ",
-        1,
-        [" ", " ", " ", " ", " "],
-        id="1_char_ngrams_space",
-    ),
-    pytest.param(
-        "     ",
-        2,
-        ["  ", "  ", "  ", "  "],
-        id="2_char_ngrams_space",
-    ),
-    pytest.param(
-        "     ",
-        3,
-        ["   ", "   ", "   "],
-        id="3_char_ngrams_space",
-    ),
-    pytest.param(
-        "     ",
-        4,
-        ["    ", "    "],
-        id="4_char_ngrams_space",
-    ),
-    pytest.param(
-        "     ",
-        5,
-        ["     "],
-        id="5_char_ngrams_space",
-    ),
-    pytest.param(
-        "     ",
-        6,
-        ["     "],
-        id="6_char_ngrams_space",
-    ),
-    pytest.param(
-        "     ",
-        1000,
-        ["     "],
-        id="1000_char_ngrams_space",
+    NormalizeWhitespacesTestCase(
+        test_name="dash+strip_False",
+        input_text="   hello   world   ",
+        expected_text="-hello-world-",
+        replacement="-",
+        strip=False,
     ),
 ]
 
 
-TEST_TOKENIZE_BY_NCHARS = [
-    pytest.param(
-        "hello my name",
-        1,
-        ["h", "e", "l", "l", "o", " ", "m", "y", " ", "n", "a", "m", "e"],
-        id="1_nchars",
+@dataclass(frozen=True, slots=True)
+class NormalizeStringTestCase:
+    test_name: str
+    input_text: str
+    expected_text: str
+    replacement: str
+    strip: bool
+
+
+TEST_NORMALIZE_STRING: list[NormalizeStringTestCase] = [
+    NormalizeStringTestCase(
+        test_name="space+strip_True",
+        input_text="hello   world",
+        expected_text="hello world",
+        replacement=" ",
+        strip=True,
     ),
-    pytest.param(
-        "hello my name",
-        2,
-        ["he", "ll", "o ", "my", " n", "am", "e"],
-        id="2_nchars",
+    NormalizeStringTestCase(
+        test_name="space+strip_False",
+        input_text="  hello   world  ",
+        expected_text=" hello world ",
+        replacement=" ",
+        strip=False,
     ),
-    pytest.param(
-        "hello my name",
-        3,
-        ["hel", "lo ", "my ", "nam", "e"],
-        id="3_nchars",
+    NormalizeStringTestCase(
+        test_name="empty_string+strip_True",
+        input_text="  hello   world  ",
+        expected_text="helloworld",
+        replacement="",
+        strip=True,
     ),
-    pytest.param(
-        "hello my name",
-        4,
-        ["hell", "o my", " nam", "e"],
-        id="4_nchars",
+    NormalizeStringTestCase(
+        test_name="empty_string+strip_False",
+        input_text="  hello   world  ",
+        expected_text="helloworld",
+        replacement="",
+        strip=False,
     ),
-    pytest.param(
-        "hello my name",
-        5,
-        ["hello", " my n", "ame"],
-        id="5_nchars",
+    NormalizeStringTestCase(
+        test_name="space+strip_True_newline_tab_1",
+        input_text=" hi\\n\\tworld ",
+        expected_text="hi world",
+        replacement=" ",
+        strip=True,
     ),
-    pytest.param(
-        "hello my name",
-        1000,
-        ["hello my name"],
-        id="1000_nchars",
+    NormalizeStringTestCase(
+        test_name="space+strip_False_newline_tab_1",
+        input_text="   hi\\n\\tworld   ",
+        expected_text=" hi world ",
+        replacement=" ",
+        strip=False,
     ),
-    pytest.param(
-        "",
-        1,
-        [],
-        id="empty_string_1_nchars",
+    NormalizeStringTestCase(
+        test_name="empty_string+strip_True_newline_tab_1",
+        input_text=" hi\\n\\tworld ",
+        expected_text="hiworld",
+        replacement="",
+        strip=True,
     ),
-    pytest.param(
-        "",
-        2,
-        [],
-        id="empty_string_2_nchars",
+    NormalizeStringTestCase(
+        test_name="empty_string+strip_False_newline_tab_1",
+        input_text="  hi\\n\\tworld ",
+        expected_text="hiworld",
+        replacement="",
+        strip=False,
     ),
-    pytest.param(
-        "",
-        3,
-        [],
-        id="empty_string_3_nchars",
+    NormalizeStringTestCase(
+        test_name="space+strip_True_newline_tab_2",
+        input_text=" hi\\n\\tworld ",
+        expected_text="hi world",
+        replacement=" ",
+        strip=True,
     ),
-    pytest.param(
-        "",
-        4,
-        [],
-        id="empty_string_4_nchars",
+    NormalizeStringTestCase(
+        test_name="space+strip_False_newline_tab_2",
+        input_text="   hi\\n\\tworld   ",
+        expected_text=" hi world ",
+        replacement=" ",
+        strip=False,
     ),
-    pytest.param(
-        "",
-        5,
-        [],
-        id="empty_string_5_nchars",
+    NormalizeStringTestCase(
+        test_name="empty_string+strip_True_newline_tab_2",
+        input_text=" hi\\n\\tworld ",
+        expected_text="hiworld",
+        replacement="",
+        strip=True,
     ),
-    pytest.param(
-        "",
-        1000,
-        [],
-        id="empty_string_1000_nchars",
+    NormalizeStringTestCase(
+        test_name="empty_string+strip_False_newline_tab_2",
+        input_text="  hi\\n\\tworld ",
+        expected_text="hiworld",
+        replacement="",
+        strip=False,
     ),
-    pytest.param(
-        "wine",
-        1,
-        ["w", "i", "n", "e"],
-        id="1_nchars_wine",
+    NormalizeStringTestCase(
+        test_name="space+strip_True_newline_tab_3",
+        input_text=" hi\\n\\tworld ",
+        expected_text="hi world",
+        replacement=" ",
+        strip=True,
     ),
-    pytest.param(
-        "wine",
-        2,
-        ["wi", "ne"],
-        id="2_nchars_wine",
+    NormalizeStringTestCase(
+        test_name="space+strip_False_newline_tab_3",
+        input_text="   hi\\n\\tworld   ",
+        expected_text=" hi world ",
+        replacement=" ",
+        strip=False,
     ),
-    pytest.param(
-        "wine",
-        3,
-        ["win", "e"],
-        id="3_nchars_wine",
+    NormalizeStringTestCase(
+        test_name="empty_string+strip_True_newline_tab_3",
+        input_text=" hi\\n\\tworld ",
+        expected_text="hiworld",
+        replacement="",
+        strip=True,
     ),
-    pytest.param(
-        "wine",
-        4,
-        ["wine"],
-        id="4_nchars_wine",
+    NormalizeStringTestCase(
+        test_name="empty_string+strip_False_newline_tab_3",
+        input_text="  hi\\n\\tworld ",
+        expected_text="hiworld",
+        replacement="",
+        strip=False,
     ),
-    pytest.param(
-        "wine",
-        5,
-        ["wine"],
-        id="5_nchars_wine",
+    NormalizeStringTestCase(
+        test_name="space+strip_True_newline_tab_4",
+        input_text=" hi\\n\\tworld ",
+        expected_text="hi world",
+        replacement=" ",
+        strip=True,
     ),
-    pytest.param(
-        "wine",
-        1000,
-        ["wine"],
-        id="1000_nchars_wine",
+    NormalizeStringTestCase(
+        test_name="space+strip_False_newline_tab_4",
+        input_text="   hi\\n\\tworld   ",
+        expected_text=" hi world ",
+        replacement=" ",
+        strip=False,
     ),
-    pytest.param(
-        "     ",
-        1,
-        [" ", " ", " ", " ", " "],
-        id="1_nchars_space",
-    ),
-    pytest.param(
-        "     ",
-        2,
-        ["  ", "  ", " "],
-        id="2_nchars_space",
-    ),
-    pytest.param(
-        "     ",
-        3,
-        ["   ", "  "],
-        id="3_nchars_space",
-    ),
-    pytest.param(
-        "     ",
-        4,
-        ["    ", " "],
-        id="4_nchars_space",
-    ),
-    pytest.param(
-        "     ",
-        5,
-        ["     "],
-        id="5_nchars_space",
-    ),
-    pytest.param(
-        "     ",
-        6,
-        ["     "],
-        id="6_nchars_space",
-    ),
-    pytest.param(
-        "     ",
-        1000,
-        ["     "],
-        id="1000_nchars_space",
+    NormalizeStringTestCase(
+        test_name="empty_string+strip_True_newline_tab_4",
+        input_text=" hi\\n\\tworld ",
+        expected_text="hiworld",
+        replacement="",
+        strip=True,
     ),
 ]
 
 
-TEST_PREPROCESS_STRING = [
-    pytest.param(
-        "nice   week",
-        "nice week",
-        ImplementedStringPreprocessing.NORMALIZE_STRING,
-        id="normalize",
+@dataclass(frozen=True, slots=True)
+class TokenizeByCharNgramsTestCase:
+    test_name: str
+    input_text: str
+    n: int
+    expected_tokens: list[str]
+
+
+TEST_TOKENIZE_BY_CHAR_NGRAMS: list[TokenizeByCharNgramsTestCase] = [
+    TokenizeByCharNgramsTestCase(
+        test_name="1_char_ngrams",
+        input_text="hello my name",
+        n=1,
+        expected_tokens=["h", "e", "l", "l", "o", " ", "m", "y", " ", "n", "a", "m", "e"],
     ),
-    pytest.param(
-        "   nice   week   ",
-        "nice week",
-        ImplementedStringPreprocessing.NORMALIZE_STRING,
-        id="normalize",
+    TokenizeByCharNgramsTestCase(
+        test_name="2_char_ngrams",
+        input_text="hello my name",
+        n=2,
+        expected_tokens=["he", "el", "ll", "lo", "o ", " m", "my", "y ", " n", "na", "am", "me"],
     ),
-    pytest.param(
-        "123 lol 456",
-        "123lol456",
-        ImplementedStringPreprocessing.REMOVE_WHITESPACES,
-        id="whitespace_removed",
+    TokenizeByCharNgramsTestCase(
+        test_name="3_char_ngrams",
+        input_text="hello my name",
+        n=3,
+        expected_tokens=["hel", "ell", "llo", "lo ", "o m", " my", "my ", "y n", " na", "nam", "ame"],
     ),
-    pytest.param(
-        "   123 lol 456   ",
-        "123lol456",
-        ImplementedStringPreprocessing.REMOVE_WHITESPACES,
-        id="whitespace_removed",
+    TokenizeByCharNgramsTestCase(
+        test_name="4_char_ngrams",
+        input_text="hello my name",
+        n=4,
+        expected_tokens=["hell", "ello", "llo ", "lo m", "o my", " my ", "my n", "y na", " nam", "name"],
     ),
-    pytest.param(
-        "hello   world",
-        "hello world",
-        ImplementedStringPreprocessing.NORMALIZE_STRING,
-        id="normalize",
+    TokenizeByCharNgramsTestCase(
+        test_name="5_char_ngrams",
+        input_text="hello my name",
+        n=5,
+        expected_tokens=["hello", "ello ", "llo m", "lo my", "o my ", " my n", "my na", "y nam", " name"],
     ),
-    pytest.param(
-        "hello\\nworld",
-        "hello\nworld",
-        ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
-        id="unicode_escape",
+    TokenizeByCharNgramsTestCase(test_name="empty_string_1_char_ngrams", input_text="", n=1, expected_tokens=[]),
+    TokenizeByCharNgramsTestCase(test_name="empty_string_2_char_ngrams", input_text="", n=2, expected_tokens=[]),
+    TokenizeByCharNgramsTestCase(test_name="empty_string_3_char_ngrams", input_text="", n=3, expected_tokens=[]),
+    TokenizeByCharNgramsTestCase(test_name="empty_string_4_char_ngrams", input_text="", n=4, expected_tokens=[]),
+    TokenizeByCharNgramsTestCase(test_name="empty_string_5_char_ngrams", input_text="", n=5, expected_tokens=[]),
+    TokenizeByCharNgramsTestCase(test_name="empty_string_1000_char_ngrams", input_text="", n=1000, expected_tokens=[]),
+    TokenizeByCharNgramsTestCase(
+        test_name="1_char_ngrams_wine", input_text="wine", n=1, expected_tokens=["w", "i", "n", "e"]
     ),
-    pytest.param(
-        "hello\\tworld",
-        "hello\tworld",
-        ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
-        id="unicode_escape",
+    TokenizeByCharNgramsTestCase(
+        test_name="2_char_ngrams_wine", input_text="wine", n=2, expected_tokens=["wi", "in", "ne"]
     ),
-    pytest.param(
-        "hello\\rworld",
-        "hello\rworld",
-        ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
-        id="unicode_escape",
+    TokenizeByCharNgramsTestCase(
+        test_name="3_char_ngrams_wine", input_text="wine", n=3, expected_tokens=["win", "ine"]
     ),
-    pytest.param(
-        "hello   world",
-        "hello world",
-        ImplementedStringPreprocessing.NORMALIZE_STRING,
-        id="replace_multiple_whitespaces",
+    TokenizeByCharNgramsTestCase(test_name="4_char_ngrams_wine", input_text="wine", n=4, expected_tokens=["wine"]),
+    TokenizeByCharNgramsTestCase(test_name="5_char_ngrams_wine", input_text="wine", n=5, expected_tokens=["wine"]),
+    TokenizeByCharNgramsTestCase(
+        test_name="1000_char_ngrams_wine", input_text="wine", n=1000, expected_tokens=["wine"]
     ),
-    pytest.param(
-        "  hello   world    ",
-        "hello world",
-        ImplementedStringPreprocessing.NORMALIZE_STRING,
-        id="replace_multiple_whitespaces",
+    TokenizeByCharNgramsTestCase(
+        test_name="1_char_ngrams_space", input_text="     ", n=1, expected_tokens=[" ", " ", " ", " ", " "]
     ),
-    pytest.param(
-        "hello   world",
-        "helloworld",
-        ImplementedStringPreprocessing.REMOVE_WHITESPACES,
-        id="whitespace_removed",
+    TokenizeByCharNgramsTestCase(
+        test_name="2_char_ngrams_space", input_text="     ", n=2, expected_tokens=["  ", "  ", "  ", "  "]
     ),
-    pytest.param(
-        "   hello   world  ",
-        "helloworld",
-        ImplementedStringPreprocessing.REMOVE_WHITESPACES,
-        id="whitespace_removed",
+    TokenizeByCharNgramsTestCase(
+        test_name="3_char_ngrams_space", input_text="     ", n=3, expected_tokens=["   ", "   ", "   "]
     ),
-    pytest.param(
-        "нет привет\nмир",  # noqa: RUF001
-        "нет привет\nмир",  # noqa: RUF001
-        ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
-        id="unicode_escape",
+    TokenizeByCharNgramsTestCase(
+        test_name="4_char_ngrams_space", input_text="     ", n=4, expected_tokens=["    ", "    "]
     ),
-    pytest.param(
-        "hello\\nworld",
-        "hello\nworld",
-        ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
-        id="unicode_escape",
+    TokenizeByCharNgramsTestCase(test_name="5_char_ngrams_space", input_text="     ", n=5, expected_tokens=["     "]),
+    TokenizeByCharNgramsTestCase(test_name="6_char_ngrams_space", input_text="     ", n=6, expected_tokens=["     "]),
+    TokenizeByCharNgramsTestCase(
+        test_name="1000_char_ngrams_space", input_text="     ", n=1000, expected_tokens=["     "]
     ),
 ]
 
 
-TEST_TOKENIZE_STRING = [
-    pytest.param(
-        "hello   world",
-        ImplementedTokenization.CHAR_NGRAMS,
-        3,
-        ["hel", "ell", "llo", "lo ", "o  ", "   ", "  w", " wo", "wor", "orl", "rld"],
-        id="char_ngrams",
+@dataclass(frozen=True, slots=True)
+class TokenizeByNcharsTestCase:
+    test_name: str
+    input_text: str
+    n: int
+    expected_tokens: list[str]
+
+
+TEST_TOKENIZE_BY_NCHARS: list[TokenizeByNcharsTestCase] = [
+    TokenizeByNcharsTestCase(
+        test_name="1_nchars",
+        input_text="hello my name",
+        n=1,
+        expected_tokens=["h", "e", "l", "l", "o", " ", "m", "y", " ", "n", "a", "m", "e"],
     ),
-    pytest.param("hello   world", ImplementedTokenization.NCHARS, 3, ["hel", "lo ", "  w", "orl", "d"], id="nchars"),
-    pytest.param(
-        "hello my name",
-        ImplementedTokenization.CHAR_NGRAMS,
-        2,
-        ["he", "el", "ll", "lo", "o ", " m", "my", "y ", " n", "na", "am", "me"],
+    TokenizeByNcharsTestCase(
+        test_name="2_nchars", input_text="hello my name", n=2, expected_tokens=["he", "ll", "o ", "my", " n", "am", "e"]
     ),
-    pytest.param("hello my name", ImplementedTokenization.NCHARS, 3, ["hel", "lo ", "my ", "nam", "e"]),
+    TokenizeByNcharsTestCase(
+        test_name="3_nchars", input_text="hello my name", n=3, expected_tokens=["hel", "lo ", "my ", "nam", "e"]
+    ),
+    TokenizeByNcharsTestCase(
+        test_name="4_nchars", input_text="hello my name", n=4, expected_tokens=["hell", "o my", " nam", "e"]
+    ),
+    TokenizeByNcharsTestCase(
+        test_name="5_nchars", input_text="hello my name", n=5, expected_tokens=["hello", " my n", "ame"]
+    ),
+    TokenizeByNcharsTestCase(
+        test_name="1000_nchars", input_text="hello my name", n=1000, expected_tokens=["hello my name"]
+    ),
+    TokenizeByNcharsTestCase(test_name="empty_string_1_nchars", input_text="", n=1, expected_tokens=[]),
+    TokenizeByNcharsTestCase(test_name="empty_string_2_nchars", input_text="", n=2, expected_tokens=[]),
+    TokenizeByNcharsTestCase(test_name="empty_string_3_nchars", input_text="", n=3, expected_tokens=[]),
+    TokenizeByNcharsTestCase(test_name="empty_string_4_nchars", input_text="", n=4, expected_tokens=[]),
+    TokenizeByNcharsTestCase(test_name="empty_string_5_nchars", input_text="", n=5, expected_tokens=[]),
+    TokenizeByNcharsTestCase(test_name="empty_string_1000_nchars", input_text="", n=1000, expected_tokens=[]),
+    TokenizeByNcharsTestCase(test_name="1_nchars_wine", input_text="wine", n=1, expected_tokens=["w", "i", "n", "e"]),
+    TokenizeByNcharsTestCase(test_name="2_nchars_wine", input_text="wine", n=2, expected_tokens=["wi", "ne"]),
+    TokenizeByNcharsTestCase(test_name="3_nchars_wine", input_text="wine", n=3, expected_tokens=["win", "e"]),
+    TokenizeByNcharsTestCase(test_name="4_nchars_wine", input_text="wine", n=4, expected_tokens=["wine"]),
+    TokenizeByNcharsTestCase(test_name="5_nchars_wine", input_text="wine", n=5, expected_tokens=["wine"]),
+    TokenizeByNcharsTestCase(test_name="1000_nchars_wine", input_text="wine", n=1000, expected_tokens=["wine"]),
+    TokenizeByNcharsTestCase(
+        test_name="1_nchars_space", input_text="     ", n=1, expected_tokens=[" ", " ", " ", " ", " "]
+    ),
+    TokenizeByNcharsTestCase(test_name="2_nchars_space", input_text="     ", n=2, expected_tokens=["  ", "  ", " "]),
+    TokenizeByNcharsTestCase(test_name="3_nchars_space", input_text="     ", n=3, expected_tokens=["   ", "  "]),
+    TokenizeByNcharsTestCase(test_name="4_nchars_space", input_text="     ", n=4, expected_tokens=["    ", " "]),
+    TokenizeByNcharsTestCase(test_name="5_nchars_space", input_text="     ", n=5, expected_tokens=["     "]),
+    TokenizeByNcharsTestCase(test_name="6_nchars_space", input_text="     ", n=6, expected_tokens=["     "]),
+    TokenizeByNcharsTestCase(test_name="1000_nchars_space", input_text="     ", n=1000, expected_tokens=["     "]),
+]
+
+
+@dataclass(frozen=True, slots=True)
+class PreprocessStringTestCase:
+    test_name: str
+    input_text: str
+    expected_text: str
+    preprocessing_method: ImplementedStringPreprocessing
+
+
+TEST_PREPROCESS_STRING: list[PreprocessStringTestCase] = [
+    PreprocessStringTestCase(
+        test_name="normalize",
+        input_text="nice   week",
+        expected_text="nice week",
+        preprocessing_method=ImplementedStringPreprocessing.NORMALIZE_STRING,
+    ),
+    PreprocessStringTestCase(
+        test_name="normalize_with_padding",
+        input_text="   nice   week   ",
+        expected_text="nice week",
+        preprocessing_method=ImplementedStringPreprocessing.NORMALIZE_STRING,
+    ),
+    PreprocessStringTestCase(
+        test_name="whitespace_removed",
+        input_text="123 lol 456",
+        expected_text="123lol456",
+        preprocessing_method=ImplementedStringPreprocessing.REMOVE_WHITESPACES,
+    ),
+    PreprocessStringTestCase(
+        test_name="whitespace_removed_with_padding",
+        input_text="   123 lol 456   ",
+        expected_text="123lol456",
+        preprocessing_method=ImplementedStringPreprocessing.REMOVE_WHITESPACES,
+    ),
+    PreprocessStringTestCase(
+        test_name="normalize_hello_world",
+        input_text="hello   world",
+        expected_text="hello world",
+        preprocessing_method=ImplementedStringPreprocessing.NORMALIZE_STRING,
+    ),
+    PreprocessStringTestCase(
+        test_name="unicode_escape_newline",
+        input_text="hello\\nworld",
+        expected_text="hello\nworld",
+        preprocessing_method=ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
+    ),
+    PreprocessStringTestCase(
+        test_name="unicode_escape_tab",
+        input_text="hello\\tworld",
+        expected_text="hello\tworld",
+        preprocessing_method=ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
+    ),
+    PreprocessStringTestCase(
+        test_name="unicode_escape_carriage",
+        input_text="hello\\rworld",
+        expected_text="hello\rworld",
+        preprocessing_method=ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
+    ),
+    PreprocessStringTestCase(
+        test_name="replace_multiple_whitespaces",
+        input_text="hello   world",
+        expected_text="hello world",
+        preprocessing_method=ImplementedStringPreprocessing.NORMALIZE_STRING,
+    ),
+    PreprocessStringTestCase(
+        test_name="replace_multiple_whitespaces_with_padding",
+        input_text="  hello   world    ",
+        expected_text="hello world",
+        preprocessing_method=ImplementedStringPreprocessing.NORMALIZE_STRING,
+    ),
+    PreprocessStringTestCase(
+        test_name="whitespace_removed_hello_world",
+        input_text="hello   world",
+        expected_text="helloworld",
+        preprocessing_method=ImplementedStringPreprocessing.REMOVE_WHITESPACES,
+    ),
+    PreprocessStringTestCase(
+        test_name="whitespace_removed_hello_world_with_padding",
+        input_text="   hello   world  ",
+        expected_text="helloworld",
+        preprocessing_method=ImplementedStringPreprocessing.REMOVE_WHITESPACES,
+    ),
+    PreprocessStringTestCase(
+        test_name="unicode_escape_cyrillic",
+        input_text="нет привет\nмир",  # noqa: RUF001
+        expected_text="нет привет\nмир",  # noqa: RUF001
+        preprocessing_method=ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
+    ),
+    PreprocessStringTestCase(
+        test_name="unicode_escape_newline_final",
+        input_text="hello\\nworld",
+        expected_text="hello\nworld",
+        preprocessing_method=ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
+    ),
+]
+
+
+@dataclass(frozen=True, slots=True)
+class TokenizeStringTestCase:
+    test_name: str
+    input_text: str
+    tokenization_method: ImplementedTokenization
+    n: int
+    expected_tokens: list[str]
+
+
+TEST_TOKENIZE_STRING: list[TokenizeStringTestCase] = [
+    TokenizeStringTestCase(
+        test_name="char_ngrams_3",
+        input_text="hello   world",
+        tokenization_method=ImplementedTokenization.CHAR_NGRAMS,
+        n=3,
+        expected_tokens=["hel", "ell", "llo", "lo ", "o  ", "   ", "  w", " wo", "wor", "orl", "rld"],
+    ),
+    TokenizeStringTestCase(
+        test_name="nchars_3",
+        input_text="hello   world",
+        tokenization_method=ImplementedTokenization.NCHARS,
+        n=3,
+        expected_tokens=["hel", "lo ", "  w", "orl", "d"],
+    ),
+    TokenizeStringTestCase(
+        test_name="char_ngrams_2",
+        input_text="hello my name",
+        tokenization_method=ImplementedTokenization.CHAR_NGRAMS,
+        n=2,
+        expected_tokens=["he", "el", "ll", "lo", "o ", " m", "my", "y ", " n", "na", "am", "me"],
+    ),
+    TokenizeStringTestCase(
+        test_name="nchars_3_hello_my_name",
+        input_text="hello my name",
+        tokenization_method=ImplementedTokenization.NCHARS,
+        n=3,
+        expected_tokens=["hel", "lo ", "my ", "nam", "e"],
+    ),
 ]

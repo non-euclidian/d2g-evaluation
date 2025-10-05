@@ -7,14 +7,21 @@ from tests.test_d2g_evaluation.text_preprocessing.conftest import (
     TEST_NORMALIZE_WHITESPACES,
     TEST_TOKENIZE_BY_CHAR_NGRAMS,
     TEST_TOKENIZE_BY_NCHARS,
+    DecodeUnicodeTestCase,
+    NormalizeStringTestCase,
+    NormalizeWhitespacesTestCase,
+    TokenizeByCharNgramsTestCase,
+    TokenizeByNcharsTestCase,
 )
 
 
 class TestStringUtils:
-    @pytest.mark.parametrize(("input_text", "expected"), TEST_DECODE_UNICODE_ESCAPES)
-    def test_decode_unicode_escapes(self, input_text: str, expected: str) -> None:
-        result = StringUtils.decode_unicode_escapes(text=input_text)
-        assert result == expected
+    @pytest.mark.parametrize("test_case", TEST_DECODE_UNICODE_ESCAPES, ids=lambda tc: tc.test_name)
+    def test_decode_unicode_escapes(self, test_case: DecodeUnicodeTestCase) -> None:
+        result = StringUtils.decode_unicode_escapes(text=test_case.input_text)
+        assert result == test_case.expected_text, (
+            f"Expected {test_case.expected_text!r}, but got {result!r} for input {test_case.input_text!r}"
+        )
 
     @pytest.mark.parametrize("raw_input", [pytest.param(r"\u276", id="incomplete-unicode")])
     def test_decode_unicode_escapes_handles_malformed_gracefully(self, raw_input: str) -> None:
@@ -22,22 +29,30 @@ class TestStringUtils:
         assert result is not None
         assert isinstance(result, str)
 
-    @pytest.mark.parametrize(("raw_input", "expected_output", "replacement", "strip"), TEST_NORMALIZE_WHITESPACES)
-    def test_normalize_whitespaces(
-        self, *, raw_input: str, expected_output: str, replacement: str, strip: bool
-    ) -> None:
-        result = StringUtils.normalize_whitespaces(text=raw_input, replacement=replacement, strip=strip)
-        assert result == expected_output, f"Expected {expected_output}, but got {result} for input {raw_input}"
+    @pytest.mark.parametrize("test_case", TEST_NORMALIZE_WHITESPACES, ids=lambda tc: tc.test_name)
+    def test_normalize_whitespaces(self, test_case: NormalizeWhitespacesTestCase) -> None:
+        result = StringUtils.normalize_whitespaces(
+            text=test_case.input_text, replacement=test_case.replacement, strip=test_case.strip
+        )
+        assert result == test_case.expected_text, (
+            f"Expected {test_case.expected_text!r}, but got {result!r} for input {test_case.input_text!r}"
+        )
 
-    @pytest.mark.parametrize(("raw_input", "expected_output", "replacement", "strip"), TEST_NORMALIZE_STRING)
-    def test_normalized_string(self, *, raw_input: str, expected_output: str, replacement: str, strip: bool) -> None:
-        result = StringUtils.normalize_string(text=raw_input, replacement=replacement, strip=strip)
-        assert result == expected_output, f"Expected {expected_output}, but got {result} for input {raw_input}"
+    @pytest.mark.parametrize("test_case", TEST_NORMALIZE_STRING, ids=lambda tc: tc.test_name)
+    def test_normalize_string(self, test_case: NormalizeStringTestCase) -> None:
+        result = StringUtils.normalize_string(
+            text=test_case.input_text, replacement=test_case.replacement, strip=test_case.strip
+        )
+        assert result == test_case.expected_text, (
+            f"Expected {test_case.expected_text!r}, but got {result!r} for input {test_case.input_text!r}"
+        )
 
-    @pytest.mark.parametrize(("raw_input", "n", "expected_output"), TEST_TOKENIZE_BY_CHAR_NGRAMS)
-    def test_tokenize_by_char_ngrams(self, *, raw_input: str, n: int, expected_output: list[str]) -> None:
-        result = StringUtils.tokenize_by_char_ngrams(text=raw_input, n=n)
-        assert result == expected_output, f"Expected {expected_output}, but got {result} for input {raw_input}"
+    @pytest.mark.parametrize("test_case", TEST_TOKENIZE_BY_CHAR_NGRAMS, ids=lambda tc: tc.test_name)
+    def test_tokenize_by_char_ngrams(self, test_case: TokenizeByCharNgramsTestCase) -> None:
+        result = StringUtils.tokenize_by_char_ngrams(text=test_case.input_text, n=test_case.n)
+        assert result == test_case.expected_tokens, (
+            f"Expected {test_case.expected_tokens!r}, but got {result!r} for input {test_case.input_text!r} with n={test_case.n}"
+        )
 
     def test_tokenize_by_char_ngrams_invalid_type(self) -> None:
         with pytest.raises(TypeError, match="Expected str, but got"):
@@ -58,10 +73,12 @@ class TestStringUtils:
         with pytest.raises(ValueError, match="n must be greater than 0, but got"):
             StringUtils.tokenize_by_char_ngrams(text="hello", n=-1)
 
-    @pytest.mark.parametrize(("raw_input", "n", "expected_output"), TEST_TOKENIZE_BY_NCHARS)
-    def test_tokenize_by_nchars(self, *, raw_input: str, n: int, expected_output: list[str]) -> None:
-        result = StringUtils.tokenize_by_nchars(text=raw_input, n=n)
-        assert result == expected_output, f"Expected {expected_output}, but got {result} for input {raw_input}"
+    @pytest.mark.parametrize("test_case", TEST_TOKENIZE_BY_NCHARS, ids=lambda tc: tc.test_name)
+    def test_tokenize_by_nchars(self, test_case: TokenizeByNcharsTestCase) -> None:
+        result = StringUtils.tokenize_by_nchars(text=test_case.input_text, n=test_case.n)
+        assert result == test_case.expected_tokens, (
+            f"Expected {test_case.expected_tokens!r}, but got {result!r} for input {test_case.input_text!r} with n={test_case.n}"
+        )
 
     def test_tokenize_by_nchars_invalid_type(self) -> None:
         with pytest.raises(TypeError, match="Expected str, but got"):
