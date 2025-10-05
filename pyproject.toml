@@ -78,3 +78,6 @@ lint.ignore = [
     "PLR2004", # magic-value-comparison
     "PLR0913", # too-many-arguments
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
