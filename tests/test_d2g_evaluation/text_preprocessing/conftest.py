@@ -535,3 +535,152 @@ TEST_TOKENIZE_STRING: list[TokenizeStringTestCase] = [
         expected_tokens=["hel", "lo ", "my ", "nam", "e"],
     ),
 ]
+
+
+@dataclass(frozen=True, slots=True)
+class PreprocessTestCase:
+    test_name: str
+    input_text: str
+    string_preprocessing_method: ImplementedStringPreprocessing | None
+    tokenization_method: ImplementedTokenization | None
+    n: int
+    expected_after_string_preprocessing: str
+    expected_after_tokenization: list[str] | None
+    expected_n_param: int | None
+    expected_is_tokenized: bool
+    expected_result: str | list[str]
+    expected_config_name: str
+
+
+TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
+    PreprocessTestCase(
+        test_name="both_methods_normalize_and_char_ngrams",
+        input_text="Hello  World",
+        string_preprocessing_method=ImplementedStringPreprocessing.NORMALIZE_WHITESPACES,
+        tokenization_method=ImplementedTokenization.CHAR_NGRAMS,
+        n=3,
+        expected_after_string_preprocessing="Hello World",
+        expected_after_tokenization=["Hel", "ell", "llo", "lo ", "o W", " Wo", "Wor", "orl", "rld"],
+        expected_n_param=3,
+        expected_is_tokenized=True,
+        expected_result=["Hel", "ell", "llo", "lo ", "o W", " Wo", "Wor", "orl", "rld"],
+        expected_config_name="str_normalize_whitespaces__tok_char_ngrams__n_3",
+    ),
+    PreprocessTestCase(
+        test_name="both_methods_normalize_and_nchars",
+        input_text="Hello  World",
+        string_preprocessing_method=ImplementedStringPreprocessing.NORMALIZE_STRING,
+        tokenization_method=ImplementedTokenization.NCHARS,
+        n=4,
+        expected_after_string_preprocessing="Hello World",
+        expected_after_tokenization=["Hell", "o Wo", "rld"],
+        expected_n_param=4,
+        expected_is_tokenized=True,
+        expected_result=["Hell", "o Wo", "rld"],
+        expected_config_name="str_normalize_string__tok_nchars__n_4",
+    ),
+    PreprocessTestCase(
+        test_name="string_only_normalize_whitespaces",
+        input_text="Hello  World",
+        string_preprocessing_method=ImplementedStringPreprocessing.NORMALIZE_WHITESPACES,
+        tokenization_method=None,
+        n=3,
+        expected_after_string_preprocessing="Hello World",
+        expected_after_tokenization=None,
+        expected_n_param=None,
+        expected_is_tokenized=False,
+        expected_result="Hello World",
+        expected_config_name="str_normalize_whitespaces__tok_none__n_none",
+    ),
+    PreprocessTestCase(
+        test_name="string_only_remove_whitespaces",
+        input_text="Hello  World",
+        string_preprocessing_method=ImplementedStringPreprocessing.REMOVE_WHITESPACES,
+        tokenization_method=None,
+        n=3,
+        expected_after_string_preprocessing="HelloWorld",
+        expected_after_tokenization=None,
+        expected_n_param=None,
+        expected_is_tokenized=False,
+        expected_result="HelloWorld",
+        expected_config_name="str_remove_whitespaces__tok_none__n_none",
+    ),
+    PreprocessTestCase(
+        test_name="tokenization_only_char_ngrams",
+        input_text="Hello",
+        string_preprocessing_method=None,
+        tokenization_method=ImplementedTokenization.CHAR_NGRAMS,
+        n=2,
+        expected_after_string_preprocessing="Hello",
+        expected_after_tokenization=["He", "el", "ll", "lo"],
+        expected_n_param=2,
+        expected_is_tokenized=True,
+        expected_result=["He", "el", "ll", "lo"],
+        expected_config_name="str_none__tok_char_ngrams__n_2",
+    ),
+    PreprocessTestCase(
+        test_name="tokenization_only_nchars",
+        input_text="Hello",
+        string_preprocessing_method=None,
+        tokenization_method=ImplementedTokenization.NCHARS,
+        n=2,
+        expected_after_string_preprocessing="Hello",
+        expected_after_tokenization=["He", "ll", "o"],
+        expected_n_param=2,
+        expected_is_tokenized=True,
+        expected_result=["He", "ll", "o"],
+        expected_config_name="str_none__tok_nchars__n_2",
+    ),
+    PreprocessTestCase(
+        test_name="default_n_value",
+        input_text="Hello",
+        string_preprocessing_method=None,
+        tokenization_method=ImplementedTokenization.CHAR_NGRAMS,
+        n=3,
+        expected_after_string_preprocessing="Hello",
+        expected_after_tokenization=["Hel", "ell", "llo"],
+        expected_n_param=3,
+        expected_is_tokenized=True,
+        expected_result=["Hel", "ell", "llo"],
+        expected_config_name="str_none__tok_char_ngrams__n_3",
+    ),
+    PreprocessTestCase(
+        test_name="empty_string_with_string_preprocessing",
+        input_text="",
+        string_preprocessing_method=ImplementedStringPreprocessing.NORMALIZE_WHITESPACES,
+        tokenization_method=None,
+        n=3,
+        expected_after_string_preprocessing="",
+        expected_after_tokenization=None,
+        expected_n_param=None,
+        expected_is_tokenized=False,
+        expected_result="",
+        expected_config_name="str_normalize_whitespaces__tok_none__n_none",
+    ),
+    PreprocessTestCase(
+        test_name="empty_string_with_tokenization",
+        input_text="",
+        string_preprocessing_method=None,
+        tokenization_method=ImplementedTokenization.CHAR_NGRAMS,
+        n=3,
+        expected_after_string_preprocessing="",
+        expected_after_tokenization=[],
+        expected_n_param=3,
+        expected_is_tokenized=True,
+        expected_result=[],
+        expected_config_name="str_none__tok_char_ngrams__n_3",
+    ),
+    PreprocessTestCase(
+        test_name="unicode_escapes_with_tokenization",
+        input_text="hello\\nworld",
+        string_preprocessing_method=ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES,
+        tokenization_method=ImplementedTokenization.CHAR_NGRAMS,
+        n=3,
+        expected_after_string_preprocessing="hello\nworld",
+        expected_after_tokenization=["hel", "ell", "llo", "lo\n", "o\nw", "\nwo", "wor", "orl", "rld"],
+        expected_n_param=3,
+        expected_is_tokenized=True,
+        expected_result=["hel", "ell", "llo", "lo\n", "o\nw", "\nwo", "wor", "orl", "rld"],
+        expected_config_name="str_decode_unicode_escapes__tok_char_ngrams__n_3",
+    ),
+]
