@@ -1,6 +1,7 @@
 from enum import Enum
 
 from d2g_evaluation.metrics.metrics_core import (
+    ImplementedCustomMetrics,
     ImplementedCyDiffLibMetrics,
     ImplementedRapidFuzzMetrics,
     MetricBackend,
@@ -9,7 +10,7 @@ from d2g_evaluation.metrics.metrics_core import (
 from d2g_evaluation.types import InputFormat
 
 
-class ImplementedMetrics(Enum):
+class MetricRegistry(Enum):
     def __init__(self, config: MetricConfig) -> None:
         self._config = config
 
@@ -84,5 +85,26 @@ class ImplementedMetrics(Enum):
         name=ImplementedCyDiffLibMetrics.RATCLIFF_OBERSHELP,
         backend=MetricBackend.CYDIFFLIB,
         works_with=InputFormat.STRING_AND_TOKEN,
+        description="dummy description",
+    )
+
+    GREEDY_SEQUENTIAL_TOKEN_MATCHING = MetricConfig(
+        name=ImplementedCustomMetrics.GREEDY_SEQUENTIAL_TOKEN_MATCHING,
+        backend=MetricBackend.OTHER,
+        works_with=InputFormat.TOKEN,
+        description="dummy description",
+    )
+
+    UNORDERED_TOKEN_MATCHING = MetricConfig(
+        name=ImplementedCustomMetrics.UNORDERED_TOKEN_MATCHING,
+        backend=MetricBackend.OTHER,
+        works_with=InputFormat.TOKEN,
+        description="dummy description",
+    )
+
+    LCS_TOKEN_MATCHING = MetricConfig(
+        name=ImplementedCustomMetrics.LCS_TOKEN_MATCHING,
+        backend=MetricBackend.OTHER,
+        works_with=InputFormat.TOKEN,
         description="dummy description",
     )

@@ -30,43 +30,105 @@ class ImplementedCyDiffLibMetrics(StrEnum):
     RATCLIFF_OBERSHELP = "ratcliff_obershelp"
 
 
-# @unique
-# class ImplementedCustomMetrics(StrEnum):
-#     msg = "Custom metric not implemented yet."
-#     raise NotImplementedError(msg)
+@unique
+class ImplementedCustomMetrics(StrEnum):
+    GREEDY_SEQUENTIAL_TOKEN_MATCHING = "greedy_sequential_token_matching"
+    UNORDERED_TOKEN_MATCHING = "unordered_token_matching"
+    LCS_TOKEN_MATCHING = "lcs_token_matching"
 
 
-@dataclass(slots=True)
-class StringBasedMetricResult:
-    score: float
-    # reference: Sequence[Hashable] | str
-    # candidate: Sequence[Hashable] | str
-    # reference_length: int
-    # candidate_length: int
+@unique
+class AsymmetricMetrics(StrEnum):
+    RATCLIFF_OBERSHELP = ImplementedCyDiffLibMetrics.RATCLIFF_OBERSHELP.value
 
-    # def __post_init__(self) -> None:
-    #     self.reference_length = len(self.reference)
-    #     self.candidate_length = len(self.candidate)
+    GREEDY_SEQUENTIAL_TOKEN_MATCHING = ImplementedCustomMetrics.GREEDY_SEQUENTIAL_TOKEN_MATCHING.value
+    UNORDERED_TOKEN_MATCHING = ImplementedCustomMetrics.UNORDERED_TOKEN_MATCHING.value
+    LCS_TOKEN_MATCHING = ImplementedCustomMetrics.LCS_TOKEN_MATCHING.value
 
 
-@dataclass(slots=True)
-class TokenBasedMetricResult:
-    reference_tokens: int
-    candidate_tokens: int
-    true_positive: int
-    false_positive: int
-    false_negative: int
-    precision: float
-    recall: float
-    f1: float
-    f2: float
-    f05: float
+@unique
+class RapidFuzzOperation(StrEnum):
+    DISTANCE = "distance"
+    NORMALIZED_DISTANCE = "normalized_distance"
+    SIMILARITY = "similarity"
+    NORMALIZED_SIMILARITY = "normalized_similarity"
+
+
+@unique
+class CyDiffLibOperation(StrEnum):
+    RATIO = "ratio"
+    QUICK_RATIO = "quick_ratio"
+    REAL_QUICK_RATIO = "real_quick_ratio"
 
 
 @dataclass(slots=True, frozen=True)
 class MetricConfig:
-    name: str
+    name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics
     backend: MetricBackend
     works_with: InputFormat
     description: str
     # available_kwargs: tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
+class MetricResult:
+    metric_name: str
+    reference_length: int
+    candidate_length: int
+    score: int | float
+
+
+@dataclass(slots=True)
+class FScoreMetricResult:
+    metric_name: str
+    reference_length: int
+    candidate_length: int
+    true_positive: int
+    false_positive: int
+    false_negative: int
+    precision: float = 0.0
+    recall: float = 0.0
+    f1: float = 0.0
+    f2: float = 0.0
+    f05: float = 0.0
+
+    def __post_init__(self) -> None:
+        self._compute_metrics()
+        self._validate_metrics()
+
+    def _compute_metrics(self) -> None:
+        """Compute precision, recall, and F-scores."""
+        # handle edge case: both reference and candidate are empty
+        if self.reference_length == 0 and self.candidate_length == 0:
+            self.precision = 1.0
+            self.recall = 1.0
+        else:
+            # compute precision and recall
+            self.precision = (
+                self.true_positive / (self.true_positive + self.false_positive)
+                if (self.true_positive + self.false_positive) > 0
+                else 0.0
+            )
+            self.recall = (
+                self.true_positive / (self.true_positive + self.false_negative)
+                if (self.true_positive + self.false_negative) > 0
+                else 0.0
+            )
+
+        # compute F-scores
+        self.f1 = self._f_beta(1.0)
+        self.f2 = self._f_beta(2.0)
+        self.f05 = self._f_beta(0.5)
+
+    def _f_beta(self, beta: float) -> float:
+        if (self.precision + self.recall) == 0:
+            return 0.0
+        beta_sq = beta**2
+        return (1 + beta_sq) * (self.precision * self.recall) / ((beta_sq * self.precision) + self.recall)
+
+    def _validate_metrics(self) -> None:
+        assert 0 <= self.precision <= 1, f"Precision out of bounds: {self.precision}"
+        assert 0 <= self.recall <= 1, f"Recall out of bounds: {self.recall}"
+        assert 0 <= self.f1 <= 1, f"F1 out of bounds: {self.f1}"
+        assert 0 <= self.f2 <= 1, f"F2 out of bounds: {self.f2}"
+        assert 0 <= self.f05 <= 1, f"F05 out of bounds: {self.f05}"
