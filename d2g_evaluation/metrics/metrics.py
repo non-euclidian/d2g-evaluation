@@ -39,7 +39,7 @@ class BaseMetricWrapper(ABC):
         raise ValueError(msg)
 
     @abstractmethod
-    def calculate(self, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    def calculate(self, *args: Any, **kwargs: Any) -> MetricResult | FScoreMetricResult:  # noqa: ANN401
         """Calculate the metric. Must be implemented by subclasses."""
         ...
 
