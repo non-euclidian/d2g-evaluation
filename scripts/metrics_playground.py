@@ -1,6 +1,8 @@
 import logging
 from typing import ClassVar
 
+import pandas  # noqa: ICN001
+
 from d2g_evaluation.metrics.interface_metrics import InterfaceMetrics
 from d2g_evaluation.metrics.metrics_registry import MetricRegistry
 from d2g_evaluation.text_preprocessing.text_preprocessing_core import (
@@ -14,7 +16,7 @@ class MetricsPlayground:
     LIMITED_N_VALUES: ClassVar[list[int]] = [1, 2, 3, 4, 5]
     LIMITED_STRING_PREPROCESSING_METHODS: ClassVar[list[ImplementedStringPreprocessing]] = [
         ImplementedStringPreprocessing.NORMALIZE_STRING,
-        ImplementedStringPreprocessing.REMOVE_WHITESPACES,
+        # ImplementedStringPreprocessing.REMOVE_WHITESPACES,
     ]
 
     STRING_PREPROCESSING_FOR_TOKENIZATION: ClassVar[list[ImplementedStringPreprocessing]] = [
@@ -23,7 +25,7 @@ class MetricsPlayground:
 
     LIMITED_TOKENIZATION_METHODS: ClassVar[list[ImplementedTokenization]] = [
         ImplementedTokenization.CHAR_NGRAMS,
-        ImplementedTokenization.NCHARS,
+        # ImplementedTokenization.NCHARS,
     ]
 
     def __init__(self) -> None:
@@ -53,6 +55,8 @@ class MetricsPlayground:
     ) -> None:
         metrics_that_work_with = self.all_metrics_by_formats(formats=[InputFormat.STRING, InputFormat.STRING_AND_TOKEN])
 
+        samples = []
+
         for metric in metrics_that_work_with:
             for str_prepr in self.LIMITED_STRING_PREPROCESSING_METHODS:
                 result = self.interface_metrics.calculate(
@@ -63,11 +67,25 @@ class MetricsPlayground:
                     tokenization_method=None,
                 )
                 if hasattr(result.metric_result, "score"):
-                    print(round(result.metric_result.score, round_val))
+                    samples.append(
+                        {
+                            "metric": result.metric_result.metric_name,
+                            "score": round(result.metric_result.score, round_val),
+                            "prepr": result.candidate.config_name,
+                            "ref_len": result.metric_result.reference_length,
+                            "cand_len": result.metric_result.candidate_length,
+                            "reference": result.reference.result,
+                            "candidate": result.candidate.result,
+                        }
+                    )
+
                 else:
                     msg = f"Metric {metric.config.name} does not have 'score' attribute."
                     self.logger.error(msg)
                     raise AttributeError(msg)
+        df = pandas.DataFrame(samples)
+        df = df.sort_values(by=["metric", "prepr"])
+        print(df.to_string(index=True))
 
     def demo_all_token_metrics(
         self,
@@ -77,36 +95,80 @@ class MetricsPlayground:
     ) -> None:
         metrics_that_work_with = self.all_metrics_by_formats(formats=[InputFormat.TOKEN, InputFormat.STRING_AND_TOKEN])
 
+        score_samples = []
+        f1_samples = []
+
         for metric in metrics_that_work_with:
             for str_prepr in self.STRING_PREPROCESSING_FOR_TOKENIZATION:
                 for tokenization in self.LIMITED_TOKENIZATION_METHODS:
-                    result = self.interface_metrics.calculate(
-                        reference=reference,
-                        candidate=candidate,
-                        metric_name=metric.config.name,
-                        string_preprocessing_method=str_prepr,
-                        tokenization_method=tokenization,
-                    )
-                    if hasattr(result.metric_result, "score"):
-                        print(round(result.metric_result.score, round_val))
-                    else:
-                        print(result.metric_result.f1)
+                    for n in self.LIMITED_N_VALUES:
+                        result = self.interface_metrics.calculate(
+                            reference=reference,
+                            candidate=candidate,
+                            metric_name=metric.config.name,
+                            string_preprocessing_method=str_prepr,
+                            tokenization_method=tokenization,
+                            n=n,
+                        )
+                        if hasattr(result.metric_result, "score"):
+                            score_samples.append(
+                                {
+                                    "metric": result.metric_result.metric_name,
+                                    "score": round(result.metric_result.score, round_val),
+                                    "prepr": result.candidate.config_name,
+                                    "ref_len": result.metric_result.reference_length,
+                                    "cand_len": result.metric_result.candidate_length,
+                                    # "reference": result.reference.result,
+                                    # "candidate": result.candidate.result,
+                                }
+                            )
+                        elif hasattr(result.metric_result, "f1"):
+                            f1_samples.append(
+                                {
+                                    "metric": result.metric_result.metric_name,
+                                    "f1": round(result.metric_result.f1, round_val),
+                                    "f2": round(result.metric_result.f2, round_val),
+                                    "f05": round(result.metric_result.f05, round_val),
+                                    "p": round(result.metric_result.precision, round_val),
+                                    "r": round(result.metric_result.recall, round_val),
+                                    "tp": result.metric_result.true_positive,
+                                    "fp": result.metric_result.false_positive,
+                                    "fn": result.metric_result.false_negative,
+                                    "prepr": result.candidate.config_name,
+                                    "ref_len": result.metric_result.reference_length,
+                                    "cand_len": result.metric_result.candidate_length,
+                                    # "reference": result.reference.result,
+                                    # "candidate": result.candidate.result,
+                                }
+                            )
+
+                        else:
+                            msg = f"Metric {metric.config.name} does not have 'score' or 'f1' attribute."
+                            self.logger.error(msg)
+                            raise AttributeError(msg)
+
+        df_scores = pandas.DataFrame(score_samples)
+        df_scores = df_scores.sort_values(by=["metric", "prepr"])
+        print(df_scores.to_string(index=True))
+
+        print("\n---\n")
+        df_f1 = pandas.DataFrame(f1_samples)
+        df_f1 = df_f1.sort_values(by=["metric", "prepr"])
+        print(df_f1.to_string(index=True))
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     playground = MetricsPlayground()
 
-    ref_text = "This is a sample reference text."
-    cand_text = "This is a sample candidate text!"
+    ref_text = "This is a sample text! Now with more text."
+    cand_text = "Have thsi. This is a sample text!"
 
     playground.demo_all_string_metrics(
         reference=ref_text,
         candidate=cand_text,
         round_val=3,
     )
-
-    print("\n---\n")
 
     playground.demo_all_token_metrics(
         reference=ref_text,

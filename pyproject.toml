@@ -6,11 +6,11 @@ requires-python = ">=3.12"
 license-files = ["LICEN[CS]E*", "NOTICE*"]
 dynamic = ["version"]
 
-dependencies = ["rapidfuzz", "cydifflib"]
+dependencies = ["rapidfuzz", "cydifflib", "numpy"]
 
 [project.optional-dependencies]
 dev = ["pre-commit", "ruff", "pytest", "coverage", "mypy"]
-notebook = ["ipykernel", "ipywidgets"]
+notebook = ["ipykernel", "ipywidgets", "pandas", "pandas-stubs"]
 
 [tool.ruff]
 target-version = "py313"
