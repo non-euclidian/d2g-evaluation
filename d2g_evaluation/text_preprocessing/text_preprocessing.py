@@ -55,10 +55,10 @@ class TextPreprocessor:
         tokenization_method: ImplementedTokenization | None = None,
         n: int = 3,
     ) -> TextPreprocessingResult:
-        if string_preprocessing_method is None and tokenization_method is None:
-            msg = "At least one of string_preprocessing_method or tokenization_method must be provided."
+        if not isinstance(text, str):
+            msg = f"Input text must be a string, got {type(text)}"
             self.logger.error(msg)
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         if string_preprocessing_method is None:
             processed_text = text

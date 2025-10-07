@@ -696,4 +696,17 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_result=["hel", "ell", "llo", "lo\n", "o\nw", "\nwo", "wor", "orl", "rld"],
         expected_config_name="str_decode_unicode_escapes__tok_char_ngrams__n_3",
     ),
+    PreprocessTestCase(
+        test_name="both_methods_none",
+        input_text="Hello World",
+        string_preprocessing_method=None,
+        tokenization_method=None,
+        n=3,
+        expected_after_string_preprocessing="Hello World",
+        expected_after_tokenization=None,
+        expected_n_param=None,
+        expected_is_tokenized=False,
+        expected_result="Hello World",
+        expected_config_name="str_none__tok_none__n_none",
+    ),
 ]

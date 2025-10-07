@@ -52,11 +52,21 @@ class TestTextPreprocessor:
         assert result.result == test_case.expected_result
         assert result.config_name == test_case.expected_config_name
 
-    def test_preprocess_no_methods_raises_error(self) -> None:
-        """Test that providing no preprocessing methods raises ValueError."""
+    def test_preprocess_raise_error(self) -> None:
         preprocessor = TextPreprocessor()
 
-        with pytest.raises(
-            ValueError, match="At least one of string_preprocessing_method or tokenization_method must be provided"
-        ):
-            preprocessor.preprocess(text="Hello")
+        with pytest.raises(TypeError):
+            preprocessor.preprocess(
+                text=123,  # type: ignore
+                string_preprocessing_method=None,
+                tokenization_method=None,
+                n=3,
+            )
+
+        with pytest.raises(TypeError):
+            preprocessor.preprocess(
+                text=["This is a test."],  # type: ignore
+                string_preprocessing_method=None,
+                tokenization_method=None,
+                n=5,
+            )
