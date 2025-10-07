@@ -76,6 +76,8 @@ class MetricsPlayground:
                             "cand_len": result.metric_result.candidate_length,
                             # "reference": result.reference.result,
                             # "candidate": result.candidate.result,
+                            "is_symmetric": result.metric_result.is_symmetric,
+                            "is_symmetric_forced": result.metric_result.is_symmetric_forced,
                         }
                     )
 
@@ -121,6 +123,8 @@ class MetricsPlayground:
                                     "cand_len": result.metric_result.candidate_length,
                                     # "reference": result.reference.result,
                                     # "candidate": result.candidate.result,
+                                    "is_symmetric": result.metric_result.is_symmetric,
+                                    "is_symmetric_forced": result.metric_result.is_symmetric_forced,
                                 }
                             )
                         elif hasattr(result.metric_result, "f1"):
@@ -140,6 +144,8 @@ class MetricsPlayground:
                                     "cand_len": result.metric_result.candidate_length,
                                     # "reference": result.reference.result,
                                     # "candidate": result.candidate.result,
+                                    "is_symmetric": result.metric_result.is_symmetric,
+                                    "is_symmetric_forced": result.metric_result.is_symmetric_forced,
                                 }
                             )
 

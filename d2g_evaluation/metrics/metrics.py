@@ -110,6 +110,7 @@ class RapidFuzzWrapper(BaseMetricWrapper):
             reference_length=len(reference),
             candidate_length=len(candidate),
             score=score,
+            is_symmetric=self.metric_registry_config.config.fully_symmetric,
         )
 
 
@@ -147,6 +148,7 @@ class CyDiffLibWrapper(BaseMetricWrapper):
                     reference_length=len(reference),
                     candidate_length=len(candidate),
                     score=score,
+                    is_symmetric=self.metric_registry_config.config.fully_symmetric,
                 )
             case _:
                 msg = f"Metric {self.metric_name} calculation not implemented."
@@ -156,7 +158,6 @@ class CyDiffLibWrapper(BaseMetricWrapper):
 class CustomMetrics:
     @staticmethod
     def greedy_sequential_token_matching(reference: list[str], candidate: list[str]) -> FScoreMetricResult:
-        """!!! Asymetric similarity metric !!!"""
         match_count = 0
         i, j = 0, 0
 
@@ -174,6 +175,7 @@ class CustomMetrics:
             metric_name=ImplementedCustomMetrics.GREEDY_SEQUENTIAL_TOKEN_MATCHING,
             reference_length=len(reference),
             candidate_length=len(candidate),
+            is_symmetric=False,
             true_positive=true_positive,
             false_positive=false_positive,
             false_negative=false_negative,
@@ -181,7 +183,6 @@ class CustomMetrics:
 
     @staticmethod
     def unordered_token_matching(reference: list[str], candidate: list[str]) -> FScoreMetricResult:
-        """!!! Asymetric similarity metric !!!"""
         candidate_counter = Counter(candidate)
         reference_counter = Counter(reference)
 
@@ -192,6 +193,7 @@ class CustomMetrics:
             metric_name=ImplementedCustomMetrics.UNORDERED_TOKEN_MATCHING,
             reference_length=len(reference),
             candidate_length=len(candidate),
+            is_symmetric=False,
             true_positive=true_positive,
             false_positive=false_positive,
             false_negative=false_negative,
@@ -199,7 +201,6 @@ class CustomMetrics:
 
     @staticmethod
     def lcs_token_matching(reference: list[str], candidate: list[str]) -> FScoreMetricResult:
-        """!!! Asymetric similarity metric !!!"""
         true_positive = LCSseq.similarity(s1=reference, s2=candidate)
         false_positive = len(candidate) - true_positive
         false_negative = len(reference) - true_positive
@@ -207,6 +208,7 @@ class CustomMetrics:
             metric_name=ImplementedCustomMetrics.LCS_TOKEN_MATCHING,
             reference_length=len(reference),
             candidate_length=len(candidate),
+            is_symmetric=False,
             true_positive=true_positive,
             false_positive=false_positive,
             false_negative=false_negative,
@@ -231,4 +233,8 @@ class CustomTokenMetricsWrapper(BaseMetricWrapper):
 
     def calculate(self, reference: list[str], candidate: list[str]) -> FScoreMetricResult:
         self._validate_inputs_tokens(reference=reference, candidate=candidate)
-        return self._metric_func(reference, candidate)
+        result = self._metric_func(reference, candidate)
+        # update the symmetric field from the registry config
+        result.is_symmetric = self.metric_registry_config.config.fully_symmetric
+
+        return result

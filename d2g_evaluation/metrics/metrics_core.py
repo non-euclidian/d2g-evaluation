@@ -58,8 +58,10 @@ class MetricResult:
     metric_name: str
     reference_length: int
     candidate_length: int
+    is_symmetric: bool
 
     score: int | float
+    is_symmetric_forced: bool = False
 
 
 @dataclass(slots=True)
@@ -67,6 +69,7 @@ class FScoreMetricResult:
     metric_name: str
     reference_length: int
     candidate_length: int
+    is_symmetric: bool
 
     true_positive: int
     false_positive: int
@@ -76,6 +79,8 @@ class FScoreMetricResult:
     f1: float = 0.0
     f2: float = 0.0
     f05: float = 0.0
+
+    is_symmetric_forced: bool = False
 
     def __post_init__(self) -> None:
         self._compute_metrics()
