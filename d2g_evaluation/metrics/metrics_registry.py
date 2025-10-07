@@ -1,11 +1,13 @@
 from enum import Enum
 
 from d2g_evaluation.metrics.metrics_core import (
+    FScoreMetricResult,
     ImplementedCustomMetrics,
     ImplementedCyDiffLibMetrics,
     ImplementedRapidFuzzMetrics,
     MetricBackend,
     MetricConfig,
+    MetricResult,
 )
 from d2g_evaluation.types import InputFormat
 
@@ -22,6 +24,8 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.DAMERAU_LEVENSHTEIN,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=True,
         description="dummy description",
     )
 
@@ -29,20 +33,26 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.INDEL,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=True,
         description="dummy description",
     )
 
     JARO = MetricConfig(
         name=ImplementedRapidFuzzMetrics.JARO,
         backend=MetricBackend.RAPIDFUZZ,
-        works_with=InputFormat.STRING,
+        works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=True,
         description="dummy description",
     )
 
     JARO_WINKLER = MetricConfig(
         name=ImplementedRapidFuzzMetrics.JARO_WINKLER,
         backend=MetricBackend.RAPIDFUZZ,
-        works_with=InputFormat.STRING,
+        works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=True,
         description="dummy description",
     )
 
@@ -50,6 +60,8 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.LEVENSHTEIN,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=True,
         description="dummy description",
     )
 
@@ -57,6 +69,8 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.LONGEST_COMMON_SUBSEQUENCE,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=True,
         description="dummy description",
     )
 
@@ -64,6 +78,8 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.OPTIMAL_STRING_ALIGNMENT,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=True,
         description="dummy description",
     )
 
@@ -71,6 +87,8 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.PREFIX,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=True,
         description="dummy description",
     )
 
@@ -78,6 +96,8 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.POSTFIX,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=True,
         description="dummy description",
     )
 
@@ -85,6 +105,8 @@ class MetricRegistry(Enum):
         name=ImplementedCyDiffLibMetrics.RATCLIFF_OBERSHELP,
         backend=MetricBackend.CYDIFFLIB,
         works_with=InputFormat.STRING_AND_TOKEN,
+        output_type=MetricResult,
+        fully_symmetric=False,
         description="dummy description",
     )
 
@@ -92,6 +114,8 @@ class MetricRegistry(Enum):
         name=ImplementedCustomMetrics.GREEDY_SEQUENTIAL_TOKEN_MATCHING,
         backend=MetricBackend.OTHER,
         works_with=InputFormat.TOKEN,
+        output_type=FScoreMetricResult,
+        fully_symmetric=False,
         description="dummy description",
     )
 
@@ -99,6 +123,8 @@ class MetricRegistry(Enum):
         name=ImplementedCustomMetrics.UNORDERED_TOKEN_MATCHING,
         backend=MetricBackend.OTHER,
         works_with=InputFormat.TOKEN,
+        output_type=FScoreMetricResult,
+        fully_symmetric=False,
         description="dummy description",
     )
 
@@ -106,5 +132,7 @@ class MetricRegistry(Enum):
         name=ImplementedCustomMetrics.LCS_TOKEN_MATCHING,
         backend=MetricBackend.OTHER,
         works_with=InputFormat.TOKEN,
+        output_type=FScoreMetricResult,
+        fully_symmetric=False,
         description="dummy description",
     )

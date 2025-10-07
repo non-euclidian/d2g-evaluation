@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from enum import StrEnum, unique
 
+from d2g_evaluation.text_preprocessing.text_preprocessing_core import TextPreprocessingResult
 from d2g_evaluation.types import InputFormat
 
 
@@ -38,15 +39,6 @@ class ImplementedCustomMetrics(StrEnum):
 
 
 @unique
-class AsymmetricMetrics(StrEnum):
-    RATCLIFF_OBERSHELP = ImplementedCyDiffLibMetrics.RATCLIFF_OBERSHELP.value
-
-    GREEDY_SEQUENTIAL_TOKEN_MATCHING = ImplementedCustomMetrics.GREEDY_SEQUENTIAL_TOKEN_MATCHING.value
-    UNORDERED_TOKEN_MATCHING = ImplementedCustomMetrics.UNORDERED_TOKEN_MATCHING.value
-    LCS_TOKEN_MATCHING = ImplementedCustomMetrics.LCS_TOKEN_MATCHING.value
-
-
-@unique
 class RapidFuzzOperation(StrEnum):
     DISTANCE = "distance"
     NORMALIZED_DISTANCE = "normalized_distance"
@@ -61,20 +53,12 @@ class CyDiffLibOperation(StrEnum):
     REAL_QUICK_RATIO = "real_quick_ratio"
 
 
-@dataclass(slots=True, frozen=True)
-class MetricConfig:
-    name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics
-    backend: MetricBackend
-    works_with: InputFormat
-    description: str
-    # available_kwargs: tuple[str, ...] = ()
-
-
 @dataclass(slots=True)
 class MetricResult:
     metric_name: str
     reference_length: int
     candidate_length: int
+
     score: int | float
 
 
@@ -83,6 +67,7 @@ class FScoreMetricResult:
     metric_name: str
     reference_length: int
     candidate_length: int
+
     true_positive: int
     false_positive: int
     false_negative: int
@@ -132,3 +117,21 @@ class FScoreMetricResult:
         assert 0 <= self.f1 <= 1, f"F1 out of bounds: {self.f1}"
         assert 0 <= self.f2 <= 1, f"F2 out of bounds: {self.f2}"
         assert 0 <= self.f05 <= 1, f"F05 out of bounds: {self.f05}"
+
+
+@dataclass(slots=True, frozen=True)
+class MetricConfig:
+    name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics
+    backend: MetricBackend
+    works_with: InputFormat
+    output_type: type[MetricResult | FScoreMetricResult]  # accepts class types
+    fully_symmetric: bool  # if True, metric(ref, cand) == metric(cand, ref)
+    description: str
+    # available_kwargs: tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
+class MetricComputationResult:
+    metric_result: MetricResult | FScoreMetricResult
+    reference: TextPreprocessingResult
+    candidate: TextPreprocessingResult

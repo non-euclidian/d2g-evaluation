@@ -4,11 +4,10 @@ from typing import Any, overload
 from d2g_evaluation.metrics.metrics import CustomTokenMetricsWrapper, CyDiffLibWrapper, RapidFuzzWrapper
 from d2g_evaluation.metrics.metrics_core import (
     CyDiffLibOperation,
-    FScoreMetricResult,
     ImplementedCustomMetrics,
     ImplementedCyDiffLibMetrics,
     ImplementedRapidFuzzMetrics,
-    MetricResult,
+    MetricComputationResult,
     RapidFuzzOperation,
 )
 from d2g_evaluation.text_preprocessing.text_preprocessing import TextPreprocessor
@@ -90,7 +89,7 @@ class InterfaceMetrics:
         tokenization_method: ImplementedTokenization | None = None,
         n: int = 3,
         **metric_kwargs: Any,  # noqa: ANN401
-    ) -> tuple[MetricResult | FScoreMetricResult, TextPreprocessingResult, TextPreprocessingResult]:
+    ) -> MetricComputationResult:
         wrapper = self._get_wrapper(metric_name)
 
         if already_preprocessed is True:
@@ -156,4 +155,8 @@ class InterfaceMetrics:
             self.logger.error(msg)
             raise TypeError(msg)
 
-        return metric_result, reference_prepr, candidate_prepr
+        return MetricComputationResult(
+            metric_result=metric_result,
+            reference=reference_prepr,
+            candidate=candidate_prepr,
+        )
