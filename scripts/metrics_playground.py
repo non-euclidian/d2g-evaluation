@@ -74,8 +74,8 @@ class MetricsPlayground:
                             "prepr": result.candidate.config_name,
                             "ref_len": result.metric_result.reference_length,
                             "cand_len": result.metric_result.candidate_length,
-                            "reference": result.reference.result,
-                            "candidate": result.candidate.result,
+                            # "reference": result.reference.result,
+                            # "candidate": result.candidate.result,
                         }
                     )
 
@@ -83,6 +83,7 @@ class MetricsPlayground:
                     msg = f"Metric {metric.config.name} does not have 'score' attribute."
                     self.logger.error(msg)
                     raise AttributeError(msg)
+
         df = pandas.DataFrame(samples)
         df = df.sort_values(by=["metric", "prepr"])
         print(df.to_string(index=True))
