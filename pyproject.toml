@@ -11,9 +11,9 @@ dependencies = ["rapidfuzz", "cydifflib", "numpy"]
 [project.optional-dependencies]
 dev = ["pre-commit", "ruff", "pytest", "coverage", "mypy"]
 
-notebook = ["ipykernel", "ipywidgets", "pandas", "pandas-stubs"]
+notebook = ["ipykernel", "ipywidgets", "polars"]
 
-labelstudio = ["pydantic", "pandas", "pandas-stubs", "tqdm"]
+labelstudio = ["pydantic", "tqdm", "polars"]
 
 [tool.ruff]
 target-version = "py313"

@@ -1,7 +1,7 @@
 import logging
 from typing import ClassVar
 
-import pandas  # noqa: ICN001
+import polars  # noqa: ICN001
 
 from d2g_evaluation.metrics.interface_metrics import InterfaceMetrics
 from d2g_evaluation.metrics.metrics_registry import MetricRegistry
@@ -10,6 +10,10 @@ from d2g_evaluation.text_preprocessing.text_preprocessing_core import (
     ImplementedTokenization,
 )
 from d2g_evaluation.types import InputFormat
+
+polars.Config.set_tbl_rows(-1)  # Show all rows
+polars.Config.set_tbl_cols(-1)  # Show all columns
+polars.Config.set_fmt_str_lengths(100)  # Set max string length for display
 
 
 class MetricsPlayground:
@@ -86,9 +90,9 @@ class MetricsPlayground:
                     self.logger.error(msg)
                     raise AttributeError(msg)
 
-        df = pandas.DataFrame(samples)
-        df = df.sort_values(by=["metric", "prepr"])
-        print(df.to_string(index=True))
+        df = polars.DataFrame(samples)
+        df = df.sort(by=["metric", "prepr"])
+        print(df)
 
     def demo_all_token_metrics(
         self,
@@ -154,14 +158,14 @@ class MetricsPlayground:
                             self.logger.error(msg)
                             raise AttributeError(msg)
 
-        df_scores = pandas.DataFrame(score_samples)
-        df_scores = df_scores.sort_values(by=["metric", "prepr"])
-        print(df_scores.to_string(index=True))
+        df_scores = polars.DataFrame(score_samples)
+        df_scores = df_scores.sort(by=["metric", "prepr"])
+        print(df_scores)
 
         print("\n---\n")
-        df_f1 = pandas.DataFrame(f1_samples)
-        df_f1 = df_f1.sort_values(by=["metric", "prepr"])
-        print(df_f1.to_string(index=True))
+        df_f1 = polars.DataFrame(f1_samples)
+        df_f1 = df_f1.sort(by=["metric", "prepr"])
+        print(df_f1)
 
 
 if __name__ == "__main__":

@@ -4,14 +4,11 @@ import json
 import logging
 import pathlib
 
-import pandas  # noqa: ICN001
+import polars  # noqa: ICN001
 import tqdm  # type: ignore
 
 from labelstudio_snapshot.merge_overlap import SpanOverlapMerger
 from labelstudio_snapshot.snapshot_dataclasses import Annotations, LabelStudioTask, ProcessedData, Result
-
-# from annotation_processing.snapshot.merge_overlap import SpanOverlapMerger
-# from annotation_processing.snapshot.snapshot_dataclasses import Annotations, LabelStudioTask, ProcessedData
 
 
 class SnapshotPreparationPipeline:
@@ -110,15 +107,15 @@ class SnapshotPreparationPipeline:
         self.logger.info("Processed data has %d annotations!", len(ready_to_use_data))
         return ready_to_use_data
 
-    def convert_processed_data_to_dataframe(self, processed_data: list[ProcessedData]) -> pandas.DataFrame:
+    def convert_processed_data_to_dataframe(self, processed_data: list[ProcessedData]) -> polars.DataFrame:
         self.logger.info("Converting processed data to DataFrame!")
-        df = pandas.DataFrame(processed_data)
+        df = polars.DataFrame(processed_data)
         self.logger.info("Dataframe shape: %s", df.shape)
         return df
 
     def load_and_process_data(
         self, json_path: str
-    ) -> tuple[list[dict], list[LabelStudioTask], list[ProcessedData], pandas.DataFrame]:
+    ) -> tuple[list[dict], list[LabelStudioTask], list[ProcessedData], polars.DataFrame]:
         json_data = self.read_json(json_path)
         structured_data = self.create_structured_data(json_data)
         processed_structured_data = self.process_structured_data(structured_data)
