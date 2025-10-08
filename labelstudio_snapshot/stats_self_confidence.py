@@ -67,6 +67,7 @@ class SelfConfidenceStats:
                 )
                 continue
 
+            self.logger.debug("Filtered group size (without None): %s", filtered_group.shape)
             mean_val = filtered_group[self.CONFIDENCE_COLUMN].mean()
             median_val = filtered_group[self.CONFIDENCE_COLUMN].median()
             max_val = filtered_group[self.CONFIDENCE_COLUMN].max()
@@ -127,12 +128,16 @@ class SelfConfidenceStats:
 
         path_df_with_confidence_stats = sub_savedir.joinpath(f"self_confidence_{grouping_column}").with_suffix(".csv")
         df_with_confidence_stats.write_csv(path_df_with_confidence_stats)
-        self.logger.info("Saved self-confidence stats per group to %s", path_df_with_confidence_stats)
+        self.logger.info("Saved self-confidence statistics by %s to %s", grouping_column, path_df_with_confidence_stats)
 
         path_df_with_confidence_stats_with_overall = sub_savedir.joinpath(
             f"self_confidence_overall_{grouping_column}"
         ).with_suffix(".csv")
         df_with_confidence_stats_with_overall.write_csv(path_df_with_confidence_stats_with_overall)
-        self.logger.info("Saved self-confidence stats with overall to %s", path_df_with_confidence_stats_with_overall)
+        self.logger.info(
+            "Saved overall self-confidence statistics by %s to %s",
+            grouping_column,
+            path_df_with_confidence_stats_with_overall,
+        )
 
         return df_with_confidence_stats, df_with_confidence_stats_with_overall
