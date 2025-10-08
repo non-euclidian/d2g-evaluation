@@ -16,7 +16,7 @@ class SnapshotPreparationPipeline:
         self.logger = logging.getLogger(__name__)
         self.overlap_span_merger = SpanOverlapMerger()
 
-    def read_json(self, json_path: str) -> list[dict]:
+    def read_json(self, json_path: str | pathlib.Path) -> list[dict]:
         self.logger.info("Reading JSON from %s", json_path)
         with pathlib.Path(json_path).open("r", encoding="utf-8") as json_file:
             json_data = json.load(json_file)
@@ -114,7 +114,7 @@ class SnapshotPreparationPipeline:
         return df
 
     def load_and_process_data(
-        self, json_path: str
+        self, json_path: str | pathlib.Path
     ) -> tuple[list[dict], list[LabelStudioTask], list[ProcessedData], polars.DataFrame]:
         json_data = self.read_json(json_path)
         structured_data = self.create_structured_data(json_data)
