@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import pathlib
-from typing import Any, ClassVar
+from typing import ClassVar
 
 import polars  # noqa: ICN001
 
@@ -17,23 +17,12 @@ class TimeStats:
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
 
-    def _round_numeric_value(self, value: Any, round_val: int, value_name: str = "value") -> float | None:  # noqa: ANN401
-        """Round numeric values, handle None, and validate types."""
-        if isinstance(value, (int, float)):
-            return round(float(value), round_val)
-        elif value is None:  # noqa: RET505
-            return None
-        else:
-            msg = f"Unexpected type {type(value)} for {value_name}: {value}"
-            self.logger.error(msg)
-            raise TypeError(msg)
-
     def calculate_time_by(
         self,
         *,
         dataframe: polars.DataFrame,
         grouping_column: str,
-        round_val: int = 3,
+        round_val: int | None = 2,
         save_dir: str | pathlib.Path = "ls_snapshot_output",
     ) -> tuple[polars.DataFrame, polars.DataFrame]:
         self.logger.info(
@@ -64,21 +53,11 @@ class TimeStats:
             max_val = filtered_group[self.LEAD_TIME_COLUMN].max()
             min_val = filtered_group[self.LEAD_TIME_COLUMN].min()
 
-            mean_val = self._round_numeric_value(mean_val, round_val, "mean")
-            median_val = self._round_numeric_value(median_val, round_val, "median")
-            max_val = self._round_numeric_value(max_val, round_val, "max")
-            min_val = self._round_numeric_value(min_val, round_val, "min")
-
-            self.logger.debug("Mean lead time: %d", mean_val)
-            self.logger.debug("Median lead time: %d", median_val)
-            self.logger.debug("Max lead time: %d", max_val)
-            self.logger.debug("Min lead time: %d", min_val)
-
             time_stats.append(
                 {
                     grouping_column: group_identifier[0],
-                    "annotations": group.height,
-                    "size": filtered_group.height,
+                    "n_items": group.height,
+                    "n_annotations": filtered_group.height,
                     "mean": mean_val,
                     "median": median_val,
                     "max": max_val,
@@ -88,27 +67,32 @@ class TimeStats:
         df_with_time_stats = polars.DataFrame(time_stats).sort(grouping_column)
         self.logger.info("Calculated time statistics for %d groups.", df_with_time_stats.height)
 
-        overall_mean = self._round_numeric_value(df_with_time_stats["mean"].mean(), round_val, "overall_mean")
-        overall_median = self._round_numeric_value(df_with_time_stats["median"].median(), round_val, "overall_median")
-        overall_max = self._round_numeric_value(df_with_time_stats["max"].max(), round_val, "overall_max")
-        overall_min = self._round_numeric_value(df_with_time_stats["min"].min(), round_val, "overall_min")
+        overall_mean_of_mean = df_with_time_stats["mean"].mean()
+        overall_mean_of_median = df_with_time_stats["median"].mean()
 
-        self.logger.info("Overall statistics across all groups:")
-        self.logger.info("Overall mean of mean lead time: %s", overall_mean)
-        self.logger.info("Overall median of median lead time: %s", overall_median)
-        self.logger.info("Overall max of max lead time: %s", overall_max)
-        self.logger.info("Overall min of min lead time: %s", overall_min)
+        overall_median_of_mean = df_with_time_stats["mean"].median()
+        overall_median_of_median = df_with_time_stats["median"].median()
+
+        overall_max = df_with_time_stats["max"].max()
+        overall_min = df_with_time_stats["min"].min()
 
         df_with_time_stats_with_overall = polars.DataFrame(
             {
-                "annotations": df_with_time_stats["annotations"].sum(),
-                "size": df_with_time_stats["size"].sum(),
-                "mean": overall_mean,
-                "median": overall_median,
+                "n_items": df_with_time_stats["n_items"].sum(),
+                "n_annotations": df_with_time_stats["n_annotations"].sum(),
+                "mean_of_mean": overall_mean_of_mean,
+                "mean_of_median": overall_mean_of_median,
+                "median_of_mean": overall_median_of_mean,
+                "median_of_median": overall_median_of_median,
                 "max": overall_max,
                 "min": overall_min,
             }
         )
+        if round_val is not None:
+            df_with_time_stats_with_overall = df_with_time_stats_with_overall.with_columns(
+                polars.all().round(round_val)
+            )
+
         sub_savedir = pathlib.Path(save_dir).joinpath("stats")
         sub_savedir.mkdir(parents=True, exist_ok=True)
 

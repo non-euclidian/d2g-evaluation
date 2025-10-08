@@ -1,6 +1,6 @@
 import logging
 import pathlib
-from typing import Any, ClassVar
+from typing import ClassVar
 
 import polars  # noqa: ICN001
 
@@ -15,23 +15,12 @@ class SelfConfidenceStats:
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
 
-    def _round_numeric_value(self, value: Any, round_val: int, value_name: str = "value") -> float | None:  # noqa: ANN401
-        """Round numeric values, handle None, and validate types."""
-        if isinstance(value, (int, float)):
-            return round(float(value), round_val)
-        elif value is None:  # noqa: RET505
-            return None
-        else:
-            msg = f"Unexpected type {type(value)} for {value_name}: {value}"
-            self.logger.error(msg)
-            raise TypeError(msg)
-
     def calculate_self_confidence(
         self,
         *,
         dataframe: polars.DataFrame,
         grouping_column: str,
-        round_val: int = 3,
+        round_val: int | None = 2,
         save_dir: str | pathlib.Path = "ls_snapshot_output",
     ) -> tuple[polars.DataFrame, polars.DataFrame]:
         self.logger.info(
@@ -57,8 +46,8 @@ class SelfConfidenceStats:
                 confidence_stats.append(
                     {
                         grouping_column: group_identifier[0],
-                        "annotations": group.height,
-                        "size": 0,
+                        "n_items": group.height,
+                        "n_annotations": 0,
                         "mean": None,
                         "median": None,
                         "max": None,
@@ -73,21 +62,11 @@ class SelfConfidenceStats:
             max_val = filtered_group[self.CONFIDENCE_COLUMN].max()
             min_val = filtered_group[self.CONFIDENCE_COLUMN].min()
 
-            mean_val = self._round_numeric_value(mean_val, round_val, "mean_val")
-            median_val = self._round_numeric_value(median_val, round_val, "median_val")
-            max_val = self._round_numeric_value(max_val, round_val, "max_val")
-            min_val = self._round_numeric_value(min_val, round_val, "min_val")
-
-            self.logger.debug("Mean self-confidence: %d", mean_val)
-            self.logger.debug("Median self-confidence: %c", median_val)
-            self.logger.debug("Max self-confidence: %s", max_val)
-            self.logger.debug("Min self-confidence: %s", min_val)
-
             confidence_stats.append(
                 {
                     grouping_column: group_identifier[0],
-                    "annotations": group.height,
-                    "size": filtered_group.height,
+                    "n_items": group.height,
+                    "n_annotations": filtered_group.height,
                     "mean": mean_val,
                     "median": median_val,
                     "max": max_val,
@@ -97,32 +76,32 @@ class SelfConfidenceStats:
         df_with_confidence_stats = polars.DataFrame(confidence_stats).sort(grouping_column)
         self.logger.info("Calculated self-confidence statistics for %d groups.", df_with_confidence_stats.height)
 
-        overall_mean = df_with_confidence_stats["mean"].mean()
-        overall_median = df_with_confidence_stats["median"].median()
+        overall_mean_of_mean = df_with_confidence_stats["mean"].mean()
+        overall_mean_of_median = df_with_confidence_stats["median"].mean()
+
+        overall_median_of_mean = df_with_confidence_stats["mean"].median()
+        overall_median_of_median = df_with_confidence_stats["median"].median()
+
         overall_max = df_with_confidence_stats["max"].max()
         overall_min = df_with_confidence_stats["min"].min()
 
-        overall_mean = self._round_numeric_value(overall_mean, round_val, "overall_mean")
-        overall_median = self._round_numeric_value(overall_median, round_val, "overall_median")
-        overall_max = self._round_numeric_value(overall_max, round_val, "overall_max")
-        overall_min = self._round_numeric_value(overall_min, round_val, "overall_min")
-
-        self.logger.info("Overall statistics across all groups:")
-        self.logger.info("Overall mean of self-confidence: %s", overall_mean)
-        self.logger.info("Overall median of self-confidence: %s", overall_median)
-        self.logger.info("Overall max of self-confidence: %s", overall_max)
-        self.logger.info("Overall min of self-confidence: %s", overall_min)
-
         df_with_confidence_stats_with_overall = polars.DataFrame(
             {
-                "annotations": df_with_confidence_stats["annotations"].sum(),
-                "size": df_with_confidence_stats["size"].sum(),
-                "mean": overall_mean,
-                "median": overall_median,
+                "n_items": df_with_confidence_stats["n_items"].sum(),
+                "n_annotations": df_with_confidence_stats["n_annotations"].sum(),
+                "mean_of_mean": overall_mean_of_mean,
+                "mean_of_median": overall_mean_of_median,
+                "median_of_mean": overall_median_of_mean,
+                "median_of_median": overall_median_of_median,
                 "max": overall_max,
                 "min": overall_min,
             }
         )
+        if round_val is not None:
+            df_with_confidence_stats_with_overall = df_with_confidence_stats_with_overall.with_columns(
+                polars.all().round(round_val)
+            )
+
         sub_savedir = pathlib.Path(save_dir).joinpath("stats")
         sub_savedir.mkdir(parents=True, exist_ok=True)
 

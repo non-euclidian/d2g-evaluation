@@ -1,4 +1,5 @@
 import logging
+import pathlib
 from dataclasses import dataclass
 from enum import StrEnum, unique
 from typing import ClassVar
@@ -44,23 +45,49 @@ class KrippendorffAlphaQuestions:
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
 
-    def calculate_k_alpha(
+    def calculate_k_alpha(  # noqa: PLR0913
         self,
         *,
         dataframe: polars.DataFrame,
         use_columns: list[str],
         level_of_measurement: LevelOfMeasurement = LevelOfMeasurement.NOMINAL,
         limit_group: int | None = None,
-    ) -> polars.DataFrame:
-        self._validate_inputs(dataframe, use_columns, level_of_measurement)
+        round_val: int | None = 3,
+        save_dir: str | pathlib.Path = "ls_snapshot_output",
+    ) -> tuple[polars.DataFrame, polars.DataFrame]:
+        self._validate_inputs(dataframe=dataframe, use_columns=use_columns, level_of_measurement=level_of_measurement)
 
         self.logger.info("Calculating Krippendorff's alpha with level: %s", level_of_measurement)
         self.logger.info("Input shape: %s, grouped by: %s", dataframe.shape, self.GROUPING_COLUMN)
         self.logger.info("Columns: %s", list(use_columns))
 
-        results = self._process_groups(dataframe, use_columns, level_of_measurement, limit_group)
+        results = self._process_groups(
+            dataframe=dataframe,
+            use_columns=use_columns,
+            level_of_measurement=level_of_measurement,
+            limit_group=limit_group,
+        )
 
-        return self._results_to_dataframe(results)
+        dataframe = self._results_to_dataframe(results=results)
+
+        dataframe_overall = self._make_overall_dataframe(dataframe=dataframe, round_val=round_val)
+
+        sub_savedir = pathlib.Path(save_dir).joinpath("stats")
+        sub_savedir.mkdir(parents=True, exist_ok=True)
+
+        config = f"cols_{len(use_columns)}_limit_{limit_group}"
+
+        path_df_with_alpha = sub_savedir.joinpath(f"krippendorff_alpha_questions_{config}").with_suffix(".csv")
+        dataframe.write_csv(path_df_with_alpha)
+        self.logger.info("Saved Krippendorff's alpha (questions) to %s", path_df_with_alpha)
+
+        path_df_with_alpha_overall = sub_savedir.joinpath(f"krippendorff_alpha_questions_overall_{config}").with_suffix(
+            ".csv"
+        )
+        dataframe_overall.write_csv(path_df_with_alpha_overall)
+        self.logger.info("Saved overall Krippendorff's alpha (questions) to %s", path_df_with_alpha_overall)
+
+        return dataframe, dataframe_overall
 
     def _validate_inputs(
         self,
@@ -134,21 +161,21 @@ class KrippendorffAlphaQuestions:
             return KAlphaResult(group_id, group.height, float("nan"))
 
         # apply sampling limit if specified
-        group = self._apply_limit(group, limit_group)
+        group = self._apply_limit(group=group, limit_group=limit_group)
 
         # extract and validate data
         data = group.select(use_columns).to_numpy()
         self.logger.debug("Data shape: %s", data.shape)
 
-        # handle edge case: all values are identical
-        if self._has_single_unique_value(data):
+        # handle edge case: all values are identical ~ in our case it's possible
+        if self._has_single_unique_value(data=data):
             self.logger.warning("Group %s has only one unique value. Setting alpha=1.0", group_id)
-            return KAlphaResult(group_id, group.height, 1.0)
+            return KAlphaResult(group_id=group_id, size=group.height, k_alpha=1.0)
 
         # calculate alpha
         alpha = krippendorff.alpha(reliability_data=data, level_of_measurement=level_of_measurement)
         self.logger.info("Krippendorff's alpha: %.4f", alpha)
-        return KAlphaResult(group_id, group.height, float(alpha))
+        return KAlphaResult(group_id=group_id, size=group.height, k_alpha=float(alpha))
 
     def _apply_limit(self, group: polars.DataFrame, limit_group: int | None) -> polars.DataFrame:
         """Apply sampling limit to group if specified."""
@@ -175,9 +202,48 @@ class KrippendorffAlphaQuestions:
         data = [
             {
                 self.GROUPING_COLUMN: r.group_id,
-                "size": r.size,
+                "n_items": r.size,
+                "n_annotations": r.size,  # here is no difference
                 "k_alpha": r.k_alpha,
             }
             for r in results
         ]
         return polars.DataFrame(data).sort(self.GROUPING_COLUMN)
+
+    def _make_overall_dataframe(self, dataframe: polars.DataFrame, round_val: int | None) -> polars.DataFrame:
+        """Create a summary DataFrame with overall statistics."""
+        dataframe_no_nans = dataframe.filter(dataframe["k_alpha"].is_not_nan())
+        if dataframe_no_nans.is_empty():
+            self.logger.warning("No valid groups with k_alpha found for overall statistics.")
+            return polars.DataFrame(
+                [
+                    {
+                        "n_items": 0,
+                        "n_annotations": 0,
+                        "mean": float("nan"),
+                        "median": float("nan"),
+                        "max": float("nan"),
+                        "min": float("nan"),
+                    }
+                ]
+            )
+
+        overall_mean = dataframe_no_nans["k_alpha"].mean()
+        overall_median = dataframe_no_nans["k_alpha"].median()
+        overall_max = dataframe_no_nans["k_alpha"].max()
+        overall_min = dataframe_no_nans["k_alpha"].min()
+
+        overall_df = polars.DataFrame(
+            {
+                "n_items": dataframe["n_items"].sum(),
+                "n_annotations": dataframe_no_nans["n_annotations"].sum(),
+                "mean": overall_mean,
+                "median": overall_median,
+                "max": overall_max,
+                "min": overall_min,
+            }
+        )
+        if round_val is not None:
+            overall_df = overall_df.with_columns(polars.all().round(round_val))
+
+        return overall_df
