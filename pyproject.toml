@@ -13,7 +13,7 @@ dev = ["pre-commit", "ruff", "pytest", "coverage", "mypy"]
 
 notebook = ["ipykernel", "ipywidgets", "polars"]
 
-labelstudio = ["pydantic", "tqdm", "polars"]
+labelstudio = ["pydantic", "tqdm", "polars", "krippendorff"]
 
 [tool.ruff]
 target-version = "py313"
