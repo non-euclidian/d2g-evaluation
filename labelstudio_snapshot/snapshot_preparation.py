@@ -116,12 +116,29 @@ class SnapshotPreparationPipeline:
     def load_and_process_data(
         self, json_path: str | pathlib.Path
     ) -> tuple[list[dict], list[LabelStudioTask], list[ProcessedData], polars.DataFrame]:
-        json_data = self.read_json(json_path)
-        structured_data = self.create_structured_data(json_data)
-        processed_structured_data = self.process_structured_data(structured_data)
-        dataframe = self.convert_processed_data_to_dataframe(processed_structured_data)
+        json_data = self.read_json(json_path=json_path)
+        structured_data = self.create_structured_data(json_data=json_data)
+        processed_structured_data = self.process_structured_data(structured_data=structured_data)
+        dataframe = self.convert_processed_data_to_dataframe(processed_data=processed_structured_data)
 
         return json_data, structured_data, processed_structured_data, dataframe
+
+    def prepare_data(
+        self, json_path: str | pathlib.Path, save_dir: str | pathlib.Path = "ls_snapshot_output"
+    ) -> polars.DataFrame:
+        _, _, _, dataframe = self.load_and_process_data(json_path=json_path)
+        save_dir_path = pathlib.Path(save_dir).joinpath("snapshot_prepared")
+        save_dir_path.mkdir(parents=True, exist_ok=True)
+
+        df_json_path = save_dir_path.joinpath("snapshot_prepared").with_suffix(".json")
+        df_parquet_path = save_dir_path.joinpath("snapshot_prepared").with_suffix(".parquet")
+
+        dataframe.write_json(df_json_path)
+        self.logger.info("Dataframe saved to JSON at %s", df_json_path)
+        dataframe.write_parquet(df_parquet_path)
+        self.logger.info("Dataframe saved to Parquet at %s", df_parquet_path)
+
+        return dataframe
 
 
 class SnapshotFieldExtractor:
