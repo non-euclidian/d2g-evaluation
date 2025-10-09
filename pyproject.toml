@@ -6,14 +6,14 @@ requires-python = ">=3.12"
 license-files = ["LICEN[CS]E*", "NOTICE*"]
 dynamic = ["version"]
 
-dependencies = ["rapidfuzz", "cydifflib", "numpy"]
+dependencies = ["rapidfuzz", "cydifflib", "numpy", "python-dotenv"]
 
 [project.optional-dependencies]
 dev = ["pre-commit", "ruff", "pytest", "coverage", "mypy"]
 
 notebook = ["ipykernel", "ipywidgets", "polars"]
 
-labelstudio = ["pydantic", "tqdm", "polars", "krippendorff"]
+labelstudio = ["pydantic", "tqdm", "polars", "krippendorff", "python-dotenv"]
 
 
 # extractors

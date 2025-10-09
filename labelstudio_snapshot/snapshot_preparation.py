@@ -8,6 +8,7 @@ import polars  # noqa: ICN001
 import tqdm  # type: ignore
 
 from labelstudio_snapshot.merge_overlap import SpanOverlapMerger
+from labelstudio_snapshot.pseudonymize import SnapshotPseudonymizer
 from labelstudio_snapshot.snapshot_dataclasses import Annotations, LabelStudioTask, ProcessedData, Result
 
 
@@ -15,6 +16,9 @@ class SnapshotPreparationPipeline:
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
         self.overlap_span_merger = SpanOverlapMerger()
+
+        self.pseudonymizer = SnapshotPseudonymizer()
+        self.email_mapping: dict[str, str] = {}
 
     def read_json(self, json_path: str | pathlib.Path) -> list[dict]:
         self.logger.info("Reading JSON from %s", json_path)
@@ -40,6 +44,11 @@ class SnapshotPreparationPipeline:
 
         if annotation.result:
             self.logger.debug("Result: %s", annotation.result)
+            original_email = annotation.completed_by.email
+            pseudonymized_email = self.pseudonymizer.pseudonymize_email(original_email)
+
+            if original_email not in self.email_mapping:
+                self.email_mapping[original_email] = pseudonymized_email
 
             # take only the spans
             original_spans = [r.value for r in annotation.result if r.from_name == "spans"]
@@ -58,7 +67,7 @@ class SnapshotPreparationPipeline:
                 task_id=task.id,
                 file_name=task.file_upload,
                 annotation_id=annotation.id,
-                annotated_by=annotation.completed_by.email,
+                annotated_by=pseudonymized_email,
                 check_loading=SnapshotFieldExtractor.extract_single_choice(annotation.result, "check_loading", [1, 2]),
                 check_not_empty=SnapshotFieldExtractor.extract_single_choice(
                     annotation.result, "check_not_empty", [3, 4]
@@ -123,6 +132,21 @@ class SnapshotPreparationPipeline:
 
         return json_data, structured_data, processed_structured_data, dataframe
 
+    def _save_email_mapping(self, save_dir_path: pathlib.Path) -> None:
+        mapping_dataframe = polars.DataFrame(
+            {
+                "original_email": list(self.email_mapping.keys()),
+                "pseudonymized_email": list(self.email_mapping.values()),
+            }
+        )
+        mapping_csv_path = save_dir_path.joinpath("email_mapping").with_suffix(".csv")
+        mapping_dataframe.write_csv(mapping_csv_path)
+        self.logger.info("Email mapping saved to CSV at %s", mapping_csv_path)
+
+        mapping_parquet_path = save_dir_path.joinpath("email_mapping").with_suffix(".parquet")
+        mapping_dataframe.write_parquet(mapping_parquet_path)
+        self.logger.info("Email mapping saved to Parquet at %s", mapping_parquet_path)
+
     def prepare_data(
         self, json_path: str | pathlib.Path, save_dir: str | pathlib.Path = "ls_snapshot_output"
     ) -> polars.DataFrame:
@@ -137,6 +161,8 @@ class SnapshotPreparationPipeline:
         self.logger.info("Dataframe saved to JSON at %s", df_json_path)
         dataframe.write_parquet(df_parquet_path)
         self.logger.info("Dataframe saved to Parquet at %s", df_parquet_path)
+
+        self._save_email_mapping(save_dir_path=save_dir_path)
 
         return dataframe
 
