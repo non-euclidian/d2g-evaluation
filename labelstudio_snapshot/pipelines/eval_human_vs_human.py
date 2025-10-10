@@ -1,7 +1,7 @@
 import logging  # noqa: F401
 
 from d2g_evaluation.metrics.interface_metrics import InterfaceMetrics
-from labelstudio_snapshot.pipelines.base import BaseEval, TaskGroup  # noqa: F401
+from d2g_evaluation.pipelines.base import BaseEval, TaskGroup  # noqa: F401
 
 
 class EvalHumanVsHuman(BaseEval):
