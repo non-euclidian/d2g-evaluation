@@ -95,11 +95,11 @@ class ProcessedData:
     rate_conf_yourself: int | None
     original_spans: list[dict]
     len_original_spans: int
-    clean_spans: list[dict]
-    len_clean_spans: int
+    merged_spans: list[dict]
+    len_merged_spans: int
     html: str
     lead_time: float
-    raw_string: str
-    len_raw_string: int
-    spans: list[str]
-    len_spans: int
+    as_string: str
+    len_as_string: int
+    as_spans: list[str]
+    len_as_spans: int

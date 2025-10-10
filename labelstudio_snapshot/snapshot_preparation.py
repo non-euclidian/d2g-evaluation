@@ -84,14 +84,14 @@ class SnapshotPreparationPipeline:
                 rate_conf_yourself=SnapshotFieldExtractor.extract_rate_conf(annotation.result, "rate_conf_yourself"),
                 original_spans=original_spans,
                 len_original_spans=len(original_spans),
-                clean_spans=merged_overlapped_spans,
-                len_clean_spans=len(merged_overlapped_spans),
+                merged_spans=merged_overlapped_spans,
+                len_merged_spans=len(merged_overlapped_spans),
                 html=task.data["html"],
                 lead_time=annotation.lead_time,
-                raw_string=raw_string,  # our main string
-                len_raw_string=len(raw_string),
-                spans=spans,
-                len_spans=len(spans),
+                as_string=raw_string,  # our main string
+                len_as_string=len(raw_string),
+                as_spans=spans,
+                len_as_spans=len(spans),
             )
 
         return None
