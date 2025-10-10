@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import pathlib
+from typing import ClassVar
 
 import polars  # noqa: ICN001
 import tqdm  # type: ignore
@@ -13,6 +14,30 @@ from labelstudio_snapshot.snapshot_dataclasses import Annotations, LabelStudioTa
 
 
 class SnapshotPreparationPipeline:
+    ANNOTATIONS_COLUMN: ClassVar[str] = "annotations"
+    TASK_GROUPING_COLUMNS: ClassVar[list[str]] = ["task_id", "file_name", "html"]
+    ANNOTATION_COUNT_COLUMN: ClassVar[str] = "annotation_count"
+
+    AGGREGATED_ANNOTATION_FIELDS: ClassVar[list[str]] = [
+        "annotation_id",
+        "annotated_by",
+        "check_loading",
+        "check_not_empty",
+        "check_lang_match",
+        "check_harmful_content",
+        "check_highlightable",
+        "rate_conf_yourself",
+        "original_spans",
+        "len_original_spans",
+        "merged_spans",
+        "len_merged_spans",
+        "lead_time",
+        "as_string",
+        "len_as_string",
+        "as_spans",
+        "len_as_spans",
+    ]
+
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
         self.overlap_span_merger = SpanOverlapMerger()
@@ -128,9 +153,11 @@ class SnapshotPreparationPipeline:
         json_data = self.read_json(json_path=json_path)
         structured_data = self.create_structured_data(json_data=json_data)
         processed_structured_data = self.process_structured_data(structured_data=structured_data)
-        dataframe = self.convert_processed_data_to_dataframe(processed_data=processed_structured_data)
+        dataframe_annotation_per_row = self.convert_processed_data_to_dataframe(
+            processed_data=processed_structured_data
+        )
 
-        return json_data, structured_data, processed_structured_data, dataframe
+        return json_data, structured_data, processed_structured_data, dataframe_annotation_per_row
 
     def _save_email_mapping(self, save_dir_path: pathlib.Path) -> None:
         mapping_dataframe = polars.DataFrame(
@@ -147,24 +174,46 @@ class SnapshotPreparationPipeline:
         mapping_dataframe.write_parquet(mapping_parquet_path)
         self.logger.info("Email mapping saved to Parquet at %s", mapping_parquet_path)
 
+    def _group_by_task_and_aggregate(self, dataframe: polars.DataFrame) -> polars.DataFrame:
+        self.logger.info("Grouping by %s and aggregating annotations!", self.TASK_GROUPING_COLUMNS)
+        grouped = dataframe.group_by(self.TASK_GROUPING_COLUMNS, maintain_order=True).agg(
+            [
+                polars.struct(self.AGGREGATED_ANNOTATION_FIELDS).alias(self.ANNOTATIONS_COLUMN),
+                polars.count().alias(self.ANNOTATION_COUNT_COLUMN),
+            ]
+        )
+        self.logger.info("Grouped DataFrame shape: %s", grouped.shape)
+        return grouped
+
     def prepare_data(
         self, json_path: str | pathlib.Path, save_dir: str | pathlib.Path = "ls_snapshot_output"
-    ) -> polars.DataFrame:
-        _, _, _, dataframe = self.load_and_process_data(json_path=json_path)
+    ) -> tuple[polars.DataFrame, polars.DataFrame]:
+        _, _, _, dataframe_annotation_per_row = self.load_and_process_data(json_path=json_path)
+
         save_dir_path = pathlib.Path(save_dir).joinpath("snapshot_prepared")
         save_dir_path.mkdir(parents=True, exist_ok=True)
 
-        df_json_path = save_dir_path.joinpath("snapshot_prepared").with_suffix(".json")
-        df_parquet_path = save_dir_path.joinpath("snapshot_prepared").with_suffix(".parquet")
+        df_json_path = save_dir_path.joinpath("snapshot_prepared_annotation_per_row").with_suffix(".json")
+        df_parquet_path = save_dir_path.joinpath("snapshot_prepared_annotation_per_row").with_suffix(".parquet")
 
-        dataframe.write_json(df_json_path)
-        self.logger.info("Dataframe saved to JSON at %s", df_json_path)
-        dataframe.write_parquet(df_parquet_path)
-        self.logger.info("Dataframe saved to Parquet at %s", df_parquet_path)
+        dataframe_annotation_per_row.write_json(df_json_path)
+        self.logger.info("Dataframe (annotation per row) saved to JSON at %s", df_json_path)
+        dataframe_annotation_per_row.write_parquet(df_parquet_path)
+        self.logger.info("Dataframe (annotation per row) saved to Parquet at %s", df_parquet_path)
 
         self._save_email_mapping(save_dir_path=save_dir_path)
 
-        return dataframe
+        dataframe_annotation_per_task = self._group_by_task_and_aggregate(dataframe_annotation_per_row)
+
+        df_task_json_path = save_dir_path.joinpath("snapshot_prepared_annotation_per_task").with_suffix(".json")
+        df_task_parquet_path = save_dir_path.joinpath("snapshot_prepared_annotation_per_task").with_suffix(".parquet")
+
+        dataframe_annotation_per_task.write_json(df_task_json_path)
+        self.logger.info("Dataframe (annotation per task) saved to JSON at %s", df_task_json_path)
+        dataframe_annotation_per_task.write_parquet(df_task_parquet_path)
+        self.logger.info("Dataframe (annotation per task) saved to Parquet at %s", df_task_parquet_path)
+
+        return dataframe_annotation_per_row, dataframe_annotation_per_task
 
 
 class SnapshotFieldExtractor:
