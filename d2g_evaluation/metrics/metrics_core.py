@@ -59,6 +59,9 @@ class MetricResult:
     candidate_length: int
     is_symmetric: bool
 
+
+@dataclass(slots=True)
+class ScoreMetricResult(MetricResult):
     score: int | float
     is_symmetric_forced: bool = False
 
@@ -67,22 +70,18 @@ class MetricResult:
 
 
 @dataclass(slots=True)
-class FScoreMetricResult:
-    metric_name: str
-    reference_length: int
-    candidate_length: int
-    is_symmetric: bool
-
+class FScoreMetricResult(MetricResult):
     true_positive: int
     false_positive: int
     false_negative: int
+
+    is_symmetric_forced: bool = False
+
     precision: float = 0.0
     recall: float = 0.0
     f1: float = 0.0
     f2: float = 0.0
     f05: float = 0.0
-
-    is_symmetric_forced: bool = False
 
     def __post_init__(self) -> None:
         self._compute_metrics()
@@ -134,7 +133,7 @@ class MetricConfig:
     name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics
     backend: MetricBackend
     works_with: InputFormat
-    output_type: type[MetricResult | FScoreMetricResult]  # accepts class types
+    output_type: type[ScoreMetricResult | FScoreMetricResult]  # accepts class types
     fully_symmetric: bool  # if True, metric(ref, cand) == metric(cand, ref)
     description: str
     # available_kwargs: tuple[str, ...] = ()
@@ -142,6 +141,9 @@ class MetricConfig:
 
 @dataclass(slots=True)
 class MetricComputationResult:
-    metric_result: MetricResult | FScoreMetricResult
+    metric_result: ScoreMetricResult | FScoreMetricResult
     reference: TextPreprocessingResult
     candidate: TextPreprocessingResult
+
+    def to_dict(self) -> dict[str, dict | str | int | float | bool]:
+        return asdict(self)

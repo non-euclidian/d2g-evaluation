@@ -10,8 +10,8 @@ from d2g_evaluation.metrics.metrics_core import (
     ImplementedCyDiffLibMetrics,
     ImplementedRapidFuzzMetrics,
     MetricComputationResult,
-    MetricResult,
     RapidFuzzOperation,
+    ScoreMetricResult,
 )
 from d2g_evaluation.text_preprocessing.text_preprocessing import TextPreprocessor
 from d2g_evaluation.text_preprocessing.text_preprocessing_core import (
@@ -60,8 +60,8 @@ class InterfaceMetrics:
 
     def prepare_texts(  # noqa: PLR0913
         self,
-        reference: str,
-        candidate: str,
+        reference: str | list[str],
+        candidate: str | list[str],
         string_preprocessing_method: ImplementedStringPreprocessing | None = None,
         tokenization_method: ImplementedTokenization | None = None,
         n: int = 3,
@@ -94,8 +94,8 @@ class InterfaceMetrics:
         operation: RapidFuzzOperation | CyDiffLibOperation | None = None,
         **metric_kwargs: Any,  # noqa: ANN401
     ) -> MetricComputationResult:
-        metric_result: MetricResult | FScoreMetricResult
-        reverse_result: MetricResult | FScoreMetricResult
+        metric_result: ScoreMetricResult | FScoreMetricResult
+        reverse_result: ScoreMetricResult | FScoreMetricResult
 
         if isinstance(wrapper, RapidFuzzWrapper):
             if operation is None:
@@ -223,8 +223,8 @@ class InterfaceMetrics:
     def calculate(  # noqa: PLR0913
         self,
         *,
-        reference: str,
-        candidate: str,
+        reference: str | list[str],
+        candidate: str | list[str],
         is_symmetric_forced: bool = True,
         metric_name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics,
         operation: RapidFuzzOperation | CyDiffLibOperation | None = None,

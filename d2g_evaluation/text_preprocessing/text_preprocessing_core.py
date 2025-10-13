@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import StrEnum, unique
 
 
@@ -73,3 +73,6 @@ class TextPreprocessingResult:
         input_type = "list" if self.is_list_input else "str"
 
         return f"input_{input_type}__str_{str_prepr}__tok_{tok_prepr}__n_{n}"
+
+    def to_dict(self) -> dict[str, str | list[str] | int | None]:
+        return asdict(self)

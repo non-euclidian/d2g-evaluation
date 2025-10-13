@@ -7,7 +7,7 @@ from d2g_evaluation.metrics.metrics_core import (
     ImplementedRapidFuzzMetrics,
     MetricBackend,
     MetricConfig,
-    MetricResult,
+    ScoreMetricResult,
 )
 from d2g_evaluation.types import InputFormat
 
@@ -24,7 +24,7 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.DAMERAU_LEVENSHTEIN,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=True,
         description="dummy description",
     )
@@ -33,7 +33,7 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.INDEL,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=True,
         description="dummy description",
     )
@@ -42,7 +42,7 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.JARO,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=True,
         description="dummy description",
     )
@@ -51,7 +51,7 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.JARO_WINKLER,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=True,
         description="dummy description",
     )
@@ -60,7 +60,7 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.LEVENSHTEIN,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=True,
         description="dummy description",
     )
@@ -69,7 +69,7 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.LONGEST_COMMON_SUBSEQUENCE,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=True,
         description="dummy description",
     )
@@ -78,7 +78,7 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.OPTIMAL_STRING_ALIGNMENT,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=True,
         description="dummy description",
     )
@@ -87,7 +87,7 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.PREFIX,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=True,
         description="dummy description",
     )
@@ -96,7 +96,7 @@ class MetricRegistry(Enum):
         name=ImplementedRapidFuzzMetrics.POSTFIX,
         backend=MetricBackend.RAPIDFUZZ,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=True,
         description="dummy description",
     )
@@ -105,7 +105,7 @@ class MetricRegistry(Enum):
         name=ImplementedCyDiffLibMetrics.RATCLIFF_OBERSHELP,
         backend=MetricBackend.CYDIFFLIB,
         works_with=InputFormat.STRING_AND_TOKEN,
-        output_type=MetricResult,
+        output_type=ScoreMetricResult,
         fully_symmetric=False,
         description="dummy description",
     )

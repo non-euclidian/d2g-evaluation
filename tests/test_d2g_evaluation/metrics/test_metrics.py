@@ -8,8 +8,8 @@ from d2g_evaluation.metrics.metrics_core import (
     ImplementedCyDiffLibMetrics,
     ImplementedRapidFuzzMetrics,
     MetricConfig,
-    MetricResult,
     RapidFuzzOperation,
+    ScoreMetricResult,
 )
 from d2g_evaluation.metrics.metrics_registry import MetricRegistry
 from tests.test_d2g_evaluation.metrics.conftest import (
@@ -60,7 +60,7 @@ class TestRapidFuzzWrapper:
     ) -> None:
         wrapper = RapidFuzzWrapper(metric_name=metric_name)
         result = wrapper.calculate(reference=test_case.reference, candidate=test_case.candidate, operation=operation)
-        assert isinstance(result, MetricResult)
+        assert isinstance(result, ScoreMetricResult)
         assert result.metric_name == metric_name
         assert result.reference_length == len(test_case.reference)
         assert result.candidate_length == len(test_case.candidate)
@@ -79,7 +79,7 @@ class TestRapidFuzzWrapper:
     ) -> None:
         wrapper = RapidFuzzWrapper(metric_name=metric_name)
         result = wrapper.calculate(reference=test_case.reference, candidate=test_case.candidate, operation=operation)
-        assert isinstance(result, MetricResult)
+        assert isinstance(result, ScoreMetricResult)
         assert result.metric_name == metric_name
         assert result.reference_length == len(test_case.reference)
         assert result.candidate_length == len(test_case.candidate)
@@ -126,8 +126,8 @@ class TestRapidFuzzWrapper:
         result1 = wrapper.calculate(reference=test_case.reference, candidate=test_case.candidate, operation=operation)
         result2 = wrapper.calculate(reference=test_case.candidate, candidate=test_case.reference, operation=operation)
 
-        assert isinstance(result1, MetricResult)
-        assert isinstance(result2, MetricResult)
+        assert isinstance(result1, ScoreMetricResult)
+        assert isinstance(result2, ScoreMetricResult)
         assert result1.metric_name == result2.metric_name == metric_name
         assert result1.reference_length == len(test_case.reference)
         assert result1.candidate_length == len(test_case.candidate)
@@ -172,7 +172,7 @@ class TestCyDiffLibWrapper:
     ) -> None:
         wrapper = CyDiffLibWrapper(metric_name=metric_name)
         result = wrapper.calculate(reference=test_case.reference, candidate=test_case.candidate, operation=operation)
-        assert isinstance(result, MetricResult)
+        assert isinstance(result, ScoreMetricResult)
         assert result.metric_name == metric_name
         assert result.reference_length == len(test_case.reference)
         assert result.candidate_length == len(test_case.candidate)
@@ -191,7 +191,7 @@ class TestCyDiffLibWrapper:
     ) -> None:
         wrapper = CyDiffLibWrapper(metric_name=metric_name)
         result = wrapper.calculate(reference=test_case.reference, candidate=test_case.candidate, operation=operation)
-        assert isinstance(result, MetricResult)
+        assert isinstance(result, ScoreMetricResult)
         assert result.metric_name == metric_name
         assert result.reference_length == len(test_case.reference)
         assert result.candidate_length == len(test_case.candidate)
@@ -229,8 +229,8 @@ class TestCyDiffLibWrapper:
         result1 = wrapper.calculate(reference=test_case.reference, candidate=test_case.candidate, operation=operation)
         result2 = wrapper.calculate(reference=test_case.candidate, candidate=test_case.reference, operation=operation)
 
-        assert isinstance(result1, MetricResult)
-        assert isinstance(result2, MetricResult)
+        assert isinstance(result1, ScoreMetricResult)
+        assert isinstance(result2, ScoreMetricResult)
         assert result1.metric_name == result2.metric_name == metric_name
         assert result1.reference_length == len(test_case.reference)
         assert result1.candidate_length == len(test_case.candidate)

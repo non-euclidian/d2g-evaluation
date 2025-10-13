@@ -13,8 +13,8 @@ from d2g_evaluation.metrics.metrics_core import (
     ImplementedCyDiffLibMetrics,
     ImplementedRapidFuzzMetrics,
     MetricBackend,
-    MetricResult,
     RapidFuzzOperation,
+    ScoreMetricResult,
 )
 from d2g_evaluation.metrics.metrics_registry import MetricRegistry
 
@@ -39,7 +39,7 @@ class BaseMetricWrapper(ABC):
         raise ValueError(msg)
 
     @abstractmethod
-    def calculate(self, *args: Any, **kwargs: Any) -> MetricResult | FScoreMetricResult:  # noqa: ANN401
+    def calculate(self, *args: Any, **kwargs: Any) -> ScoreMetricResult | FScoreMetricResult:  # noqa: ANN401
         """Calculate the metric. Must be implemented by subclasses."""
         ...
 
@@ -101,11 +101,11 @@ class RapidFuzzWrapper(BaseMetricWrapper):
         candidate: str | list[str],
         operation: RapidFuzzOperation = RapidFuzzOperation.NORMALIZED_SIMILARITY,
         **kwargs: Any,  # noqa: ANN401
-    ) -> MetricResult:
+    ) -> ScoreMetricResult:
         self._validate_inputs_mixed(reference=reference, candidate=candidate)
         operation_func = getattr(self._metric_module, operation.value)
         score: float | int = operation_func(s1=reference, s2=candidate, **kwargs)
-        return MetricResult(
+        return ScoreMetricResult(
             metric_name=self.metric_name,
             reference_length=len(reference),
             candidate_length=len(candidate),
@@ -136,14 +136,14 @@ class CyDiffLibWrapper(BaseMetricWrapper):
         isjunk: None | Callable[[Hashable], bool] = None,
         *,
         autojunk: bool = False,
-    ) -> MetricResult:
+    ) -> ScoreMetricResult:
         self._validate_inputs_mixed(reference=reference, candidate=candidate)
         match self.metric_name:
             case ImplementedCyDiffLibMetrics.RATCLIFF_OBERSHELP:  # !!! Asymetric similarity metric !!!
                 sm = SequenceMatcher(isjunk=isjunk, a=reference, b=candidate, autojunk=autojunk)
                 operation_func = getattr(sm, operation.value)
                 score = operation_func()
-                return MetricResult(
+                return ScoreMetricResult(
                     metric_name=self.metric_name,
                     reference_length=len(reference),
                     candidate_length=len(candidate),
