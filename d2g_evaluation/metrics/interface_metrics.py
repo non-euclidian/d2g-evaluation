@@ -219,28 +219,17 @@ class InterfaceMetrics:
     def calculate(  # noqa: PLR0913
         self,
         *,
-        reference: str | list[str],
-        candidate: str | list[str],
+        reference: str,
+        candidate: str,
         is_symmetric_forced: bool = True,
         metric_name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics,
         operation: RapidFuzzOperation | CyDiffLibOperation | None = None,
         string_preprocessing_method: ImplementedStringPreprocessing | None = None,
         tokenization_method: ImplementedTokenization | None = None,
         n: int = 3,
-        already_preprocessed: bool = False,
         **metric_kwargs: Any,  # noqa: ANN401
     ) -> MetricComputationResult:
         wrapper = self._get_wrapper(metric_name)
-
-        if already_preprocessed is True:
-            msg = "Preprocessed reference and candidate are not yet supported."
-            self.logger.error(msg)
-            raise NotImplementedError(msg)
-
-        if not isinstance(reference, str) or not isinstance(candidate, str):
-            msg = "When `already_preprocessed` is `False`, both reference and candidate must be strings."
-            self.logger.error(msg)
-            raise TypeError(msg)
 
         reference_prepr, candidate_prepr = self.prepare_texts(
             reference=reference,

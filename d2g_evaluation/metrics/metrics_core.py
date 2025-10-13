@@ -1,5 +1,4 @@
-# from collections.abc import Hashable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import StrEnum, unique
 
 from d2g_evaluation.text_preprocessing.text_preprocessing_core import TextPreprocessingResult
@@ -63,6 +62,9 @@ class MetricResult:
     score: int | float
     is_symmetric_forced: bool = False
 
+    def to_dict(self) -> dict[str, float | int | str | bool]:
+        return asdict(self)
+
 
 @dataclass(slots=True)
 class FScoreMetricResult:
@@ -122,6 +124,9 @@ class FScoreMetricResult:
         assert 0 <= self.f1 <= 1, f"F1 out of bounds: {self.f1}"
         assert 0 <= self.f2 <= 1, f"F2 out of bounds: {self.f2}"
         assert 0 <= self.f05 <= 1, f"F05 out of bounds: {self.f05}"
+
+    def to_dict(self) -> dict[str, float | int | str | bool]:
+        return asdict(self)
 
 
 @dataclass(slots=True, frozen=True)

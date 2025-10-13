@@ -210,3 +210,6 @@ RAW_SNAPSHOTS
 ls_snapshot_output
 d2g_evaluation/extractors/beautifulsoup4.py
 .DS_Store
+yolo.py
+d2g_evaluation/evaluation/base_evaluation.py
+d2g_evaluation/evaluation/evaluate_human_vs_human.py
