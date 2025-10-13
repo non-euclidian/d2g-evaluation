@@ -564,7 +564,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=3,
         expected_is_tokenized=True,
         expected_result=["Hel", "ell", "llo", "lo ", "o W", " Wo", "Wor", "orl", "rld"],
-        expected_config_name="str_normalize_whitespaces__tok_char_ngrams__n_3",
+        expected_config_name="input_str__str_normalize_whitespaces__tok_char_ngrams__n_3",
     ),
     PreprocessTestCase(
         test_name="both_methods_normalize_and_nchars",
@@ -577,7 +577,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=4,
         expected_is_tokenized=True,
         expected_result=["Hell", "o Wo", "rld"],
-        expected_config_name="str_normalize_string__tok_nchars__n_4",
+        expected_config_name="input_str__str_normalize_string__tok_nchars__n_4",
     ),
     PreprocessTestCase(
         test_name="string_only_normalize_whitespaces",
@@ -590,7 +590,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=None,
         expected_is_tokenized=False,
         expected_result="Hello World",
-        expected_config_name="str_normalize_whitespaces__tok_none__n_none",
+        expected_config_name="input_str__str_normalize_whitespaces__tok_None__n_None",
     ),
     PreprocessTestCase(
         test_name="string_only_remove_whitespaces",
@@ -603,7 +603,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=None,
         expected_is_tokenized=False,
         expected_result="HelloWorld",
-        expected_config_name="str_remove_whitespaces__tok_none__n_none",
+        expected_config_name="input_str__str_remove_whitespaces__tok_None__n_None",
     ),
     PreprocessTestCase(
         test_name="no_string_preprocessing_but_tokenization_char_ngrams",
@@ -616,7 +616,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=5,
         expected_is_tokenized=True,
         expected_result=[" 1 He", "llo  ", "World", " "],
-        expected_config_name="str_none__tok_nchars__n_5",
+        expected_config_name="input_str__str_None__tok_nchars__n_5",
     ),
     PreprocessTestCase(
         test_name="tokenization_only_char_ngrams",
@@ -629,7 +629,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=2,
         expected_is_tokenized=True,
         expected_result=["He", "el", "ll", "lo"],
-        expected_config_name="str_none__tok_char_ngrams__n_2",
+        expected_config_name="input_str__str_None__tok_char_ngrams__n_2",
     ),
     PreprocessTestCase(
         test_name="tokenization_only_nchars",
@@ -642,7 +642,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=2,
         expected_is_tokenized=True,
         expected_result=["He", "ll", "o"],
-        expected_config_name="str_none__tok_nchars__n_2",
+        expected_config_name="input_str__str_None__tok_nchars__n_2",
     ),
     PreprocessTestCase(
         test_name="default_n_value",
@@ -655,7 +655,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=3,
         expected_is_tokenized=True,
         expected_result=["Hel", "ell", "llo"],
-        expected_config_name="str_none__tok_char_ngrams__n_3",
+        expected_config_name="input_str__str_None__tok_char_ngrams__n_3",
     ),
     PreprocessTestCase(
         test_name="empty_string_with_string_preprocessing",
@@ -668,7 +668,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=None,
         expected_is_tokenized=False,
         expected_result="",
-        expected_config_name="str_normalize_whitespaces__tok_none__n_none",
+        expected_config_name="input_str__str_normalize_whitespaces__tok_None__n_None",
     ),
     PreprocessTestCase(
         test_name="empty_string_with_tokenization",
@@ -681,7 +681,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=3,
         expected_is_tokenized=True,
         expected_result=[],
-        expected_config_name="str_none__tok_char_ngrams__n_3",
+        expected_config_name="input_str__str_None__tok_char_ngrams__n_3",
     ),
     PreprocessTestCase(
         test_name="unicode_escapes_with_tokenization",
@@ -694,7 +694,7 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=3,
         expected_is_tokenized=True,
         expected_result=["hel", "ell", "llo", "lo\n", "o\nw", "\nwo", "wor", "orl", "rld"],
-        expected_config_name="str_decode_unicode_escapes__tok_char_ngrams__n_3",
+        expected_config_name="input_str__str_decode_unicode_escapes__tok_char_ngrams__n_3",
     ),
     PreprocessTestCase(
         test_name="both_methods_none",
@@ -707,6 +707,6 @@ TEST_PREPROCESS_METHOD: list[PreprocessTestCase] = [
         expected_n_param=None,
         expected_is_tokenized=False,
         expected_result="Hello World",
-        expected_config_name="str_none__tok_none__n_none",
+        expected_config_name="input_str__str_None__tok_None__n_None",
     ),
 ]

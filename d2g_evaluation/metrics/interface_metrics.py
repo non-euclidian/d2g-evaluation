@@ -58,25 +58,29 @@ class InterfaceMetrics:
         self._wrapper_cache[metric_name] = wrapper
         return wrapper
 
-    def prepare_texts(
+    def prepare_texts(  # noqa: PLR0913
         self,
         reference: str,
         candidate: str,
         string_preprocessing_method: ImplementedStringPreprocessing | None = None,
         tokenization_method: ImplementedTokenization | None = None,
         n: int = 3,
+        *,
+        already_preprocessed: bool = False,
     ) -> tuple[TextPreprocessingResult, TextPreprocessingResult]:
         reference_prepr = self.preprocessor.preprocess(
             text=reference,
             string_preprocessing_method=string_preprocessing_method,
             tokenization_method=tokenization_method,
             n=n,
+            already_preprocessed=already_preprocessed,
         )
         candidate_prepr = self.preprocessor.preprocess(
             text=candidate,
             string_preprocessing_method=string_preprocessing_method,
             tokenization_method=tokenization_method,
             n=n,
+            already_preprocessed=already_preprocessed,
         )
         return reference_prepr, candidate_prepr
 
@@ -227,6 +231,7 @@ class InterfaceMetrics:
         string_preprocessing_method: ImplementedStringPreprocessing | None = None,
         tokenization_method: ImplementedTokenization | None = None,
         n: int = 3,
+        already_preprocessed: bool = False,
         **metric_kwargs: Any,  # noqa: ANN401
     ) -> MetricComputationResult:
         wrapper = self._get_wrapper(metric_name)
@@ -237,6 +242,7 @@ class InterfaceMetrics:
             string_preprocessing_method=string_preprocessing_method,
             tokenization_method=tokenization_method,
             n=n,
+            already_preprocessed=already_preprocessed,
         )
 
         metric_computation_result = self._compute_metric_result(

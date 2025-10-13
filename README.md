@@ -3,5 +3,6 @@
 
 
 # TODO
-* allow custom preprocessing (flag preprocessed=True/False ?)
+* ~~allow custom preprocessing (flag already_preprocessed: bool = False/True)~~
+    * [tests] add tests for already_preprocessed=True
 * add API for external custom metrics

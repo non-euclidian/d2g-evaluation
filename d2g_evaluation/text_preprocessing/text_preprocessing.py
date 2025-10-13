@@ -15,7 +15,7 @@ class TextPreprocessor:
     def _preprocess_string(
         self,
         text: str,
-        string_preprocessing_method: ImplementedStringPreprocessing,
+        string_preprocessing_method: ImplementedStringPreprocessing | str,
     ) -> str:
         match string_preprocessing_method:
             case ImplementedStringPreprocessing.DECODE_UNICODE_ESCAPES:
@@ -35,7 +35,7 @@ class TextPreprocessor:
     def _tokenize_string(
         self,
         text: str,
-        tokenization_method: ImplementedTokenization,
+        tokenization_method: ImplementedTokenization | str,
         n: int = 3,
     ) -> list[str]:
         match tokenization_method:
@@ -48,15 +48,56 @@ class TextPreprocessor:
                 self.logger.error(msg)
                 raise ValueError(msg)
 
-    def preprocess(
+    def _allow_preprocessed(
         self,
-        text: str,
-        string_preprocessing_method: ImplementedStringPreprocessing | None = None,
-        tokenization_method: ImplementedTokenization | None = None,
+        text: str | list[str],
+        string_preprocessing_method: ImplementedStringPreprocessing | str | None = None,
+        tokenization_method: ImplementedTokenization | str | None = None,
         n: int = 3,
     ) -> TextPreprocessingResult:
+        if isinstance(text, str):
+            return TextPreprocessingResult(
+                original=text,
+                after_string_preprocessing=text,
+                after_tokenization=None,
+                string_preprocessing_method=string_preprocessing_method,
+                tokenization_method=tokenization_method,
+                n_param=n if tokenization_method is not None else None,
+            )
+
+        if isinstance(text, list):
+            if not all(isinstance(item, str) for item in text):
+                msg = "All items in text list must be strings"
+                self.logger.error(msg)
+                raise TypeError(msg)
+
+            return TextPreprocessingResult(
+                original=text,
+                after_string_preprocessing=None,
+                after_tokenization=text,
+                string_preprocessing_method=string_preprocessing_method,
+                tokenization_method=tokenization_method,
+                n_param=n if tokenization_method is not None else None,
+            )
+
+        msg = f"When already_preprocessed=True, input must be str or list[str], got {type(text)}"
+        self.logger.error(msg)
+        raise TypeError(msg)
+
+    def preprocess(
+        self,
+        text: str | list[str],
+        string_preprocessing_method: ImplementedStringPreprocessing | str | None = None,
+        tokenization_method: ImplementedTokenization | str | None = None,
+        n: int = 3,
+        *,
+        already_preprocessed: bool = False,
+    ) -> TextPreprocessingResult:
+        if already_preprocessed:
+            return self._allow_preprocessed(text=text)
+
         if not isinstance(text, str):
-            msg = f"Input text must be a string, got {type(text)}"
+            msg = f"Input text must be a string (or str/list[str] with already_preprocessed=True), got {type(text)}"
             self.logger.error(msg)
             raise TypeError(msg)
 
