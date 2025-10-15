@@ -30,6 +30,14 @@ class InterfaceMetrics:
             RapidFuzzWrapper | CyDiffLibWrapper | CustomTokenMetricsWrapper,
         ] = {}
 
+        self._metric_name_to_enum_map: dict[
+            str, ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics
+        ] = {}
+
+        for enum_cls in (ImplementedRapidFuzzMetrics, ImplementedCyDiffLibMetrics, ImplementedCustomMetrics):
+            for member in enum_cls:
+                self._metric_name_to_enum_map[member.value] = member
+
     @overload
     def _get_wrapper(self, metric_name: ImplementedRapidFuzzMetrics) -> RapidFuzzWrapper: ...
     @overload
@@ -62,8 +70,8 @@ class InterfaceMetrics:
         self,
         reference: str | list[str],
         candidate: str | list[str],
-        string_preprocessing_method: ImplementedStringPreprocessing | None = None,
-        tokenization_method: ImplementedTokenization | None = None,
+        string_preprocessing_method: ImplementedStringPreprocessing | str | None = None,
+        tokenization_method: ImplementedTokenization | str | None = None,
         n: int = 3,
         *,
         already_preprocessed: bool = False,
@@ -226,15 +234,21 @@ class InterfaceMetrics:
         reference: str | list[str],
         candidate: str | list[str],
         is_symmetric_forced: bool = True,
-        metric_name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics,
+        metric_name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics | str,
         operation: RapidFuzzOperation | CyDiffLibOperation | None = None,
-        string_preprocessing_method: ImplementedStringPreprocessing | None = None,
-        tokenization_method: ImplementedTokenization | None = None,
+        string_preprocessing_method: ImplementedStringPreprocessing | str | None = None,
+        tokenization_method: ImplementedTokenization | str | None = None,
         n: int = 3,
         already_preprocessed: bool = False,
         **metric_kwargs: Any,  # noqa: ANN401
     ) -> MetricComputationResult:
-        wrapper = self._get_wrapper(metric_name)
+        metric_enum = self._metric_name_to_enum_map.get(str(metric_name))
+        if metric_enum is None:
+            msg = f"Metric '{metric_name}' is not valid metric name. Available metrics: {list(self._metric_name_to_enum_map.keys())}"
+            self.logger.error(msg)
+            raise ValueError(msg)
+
+        wrapper = self._get_wrapper(metric_name=metric_enum)
 
         reference_prepr, candidate_prepr = self.prepare_texts(
             reference=reference,

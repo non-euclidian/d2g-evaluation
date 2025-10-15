@@ -1,18 +1,33 @@
 from __future__ import annotations
 
-import logging  # noqa: F401
-from abc import ABC  # noqa: F401
+import itertools
+import logging
+import random
+from abc import ABC, abstractmethod  # noqa: F401
 from dataclasses import asdict, dataclass
 from statistics import mean, median
-from typing import Any, ClassVar  # noqa: F401
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from d2g_evaluation.metrics.interface_metrics import InterfaceMetrics  # noqa: F401
-from d2g_evaluation.metrics.metrics_core import FScoreMetricResult, MetricComputationResult, ScoreMetricResult
+from d2g_evaluation.dataloader.base_dataloader import D2GDataLoader
+from d2g_evaluation.metrics.interface_metrics import InterfaceMetrics
+from d2g_evaluation.metrics.metrics_core import (
+    FScoreMetricResult,
+    ImplementedCustomMetrics,
+    ImplementedCyDiffLibMetrics,
+    ImplementedRapidFuzzMetrics,
+    MetricComputationResult,
+    ScoreMetricResult,
+)
+
+if TYPE_CHECKING:
+    import pathlib
+
+    import datasets  # type: ignore
 
 
 @dataclass(slots=True)
-class PairwiseComparisonResult:
-    computation: MetricComputationResult
+class PairwiseEvaluationResult:
+    metric_computation: MetricComputationResult | None = None
 
     task_id: int | str | None = None
     reference_id: int | str | None = None
@@ -20,27 +35,45 @@ class PairwiseComparisonResult:
 
     @property
     def metric_result(self) -> ScoreMetricResult | FScoreMetricResult:
-        return self.computation.metric_result
+        if self.metric_computation is None:
+            msg = "Cannot access metric_result on empty PairwiseComparisonResult"
+            raise ValueError(msg)
+        return self.metric_computation.metric_result
 
     @property
     def metric_name(self) -> str:
+        if self.metric_computation is None:
+            msg = "Cannot access metric_name on empty PairwiseComparisonResult"
+            raise ValueError(msg)
         return self.metric_result.metric_name
 
     @property
     def is_reference_tokenized(self) -> bool:
-        return self.computation.reference.is_tokenized
+        if self.metric_computation is None:
+            msg = "Cannot access is_reference_tokenized on empty PairwiseComparisonResult"
+            raise ValueError(msg)
+        return self.metric_computation.reference.is_tokenized
 
     @property
     def is_candidate_tokenized(self) -> bool:
-        return self.computation.candidate.is_tokenized
+        if self.metric_computation is None:
+            msg = "Cannot access is_candidate_tokenized on empty PairwiseComparisonResult"
+            raise ValueError(msg)
+        return self.metric_computation.candidate.is_tokenized
 
     @property
     def reference_config_name(self) -> str:
-        return self.computation.reference.config_name
+        if self.metric_computation is None:
+            msg = "Cannot access reference_config_name on empty PairwiseComparisonResult"
+            raise ValueError(msg)
+        return self.metric_computation.reference.config_name
 
     @property
     def candidate_config_name(self) -> str:
-        return self.computation.candidate.config_name
+        if self.metric_computation is None:
+            msg = "Cannot access candidate_config_name on empty PairwiseComparisonResult"
+            raise ValueError(msg)
+        return self.metric_computation.candidate.config_name
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -70,7 +103,7 @@ class DescriptiveStatistics:
 
 @dataclass(slots=True)
 class SampleEvaluationResult:
-    metric_name: str
+    metric_name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics | str
     num_comparisons: int
     task_id: int | str | None = None
 
@@ -100,9 +133,9 @@ class SampleEvaluationResult:
     @classmethod
     def from_pairwise_results(
         cls,
-        metric_name: str,
+        metric_name: str | ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics,
         task_id: int | str | None = None,
-        pairwise_results: list[PairwiseComparisonResult] | None = None,
+        pairwise_results: list[PairwiseEvaluationResult] | None = None,
     ) -> SampleEvaluationResult:
         if pairwise_results is None or len(pairwise_results) == 0:
             return cls(
@@ -162,9 +195,32 @@ class SampleEvaluationResult:
         raise ValueError(msg)
 
 
-# class BaseEvaluation(ABC):
-#     SEED: ClassVar[int] = 414242
+class BaseEvaluation(ABC):  # noqa: B024
+    SEED: ClassVar[int] = 414242
 
-#     def __init__(self) -> None:
-#         self.logger = logging.getLogger(__name__)
-#         self.interface_metrics = InterfaceMetrics()
+    def __init__(self) -> None:
+        self.logger = logging.getLogger(__name__)
+        self.rng_generator = random.Random(self.SEED)
+
+        self.interface_metrics = InterfaceMetrics()
+
+    def generate_pairwise_combinations(self, items: list[Any]) -> list[tuple[Any, Any]]:
+        return list(itertools.combinations(items, 2))
+
+    def generate_one_to_many_pairs(self, main_item: Any, items: list[Any]) -> list[tuple[Any, Any]]:  # noqa: ANN401
+        return list(zip(itertools.repeat(main_item), items))
+
+    def sample_with_limit(self, items: list[Any], limit: int) -> list[Any]:
+        if limit is None or limit <= 0 or limit >= len(items):
+            return items
+        return self.rng_generator.sample(items, limit)
+
+    def load_hf_dataset_from_file(self, file_path: str | pathlib.Path) -> datasets.Dataset:
+        """Load a dataset from a local file."""
+        self.logger.info("Loading data from file: %s", file_path)
+        data = D2GDataLoader.from_file(file_path=file_path).to_dataset(split="test")
+        self.logger.info("Loaded %d records from %s", len(data), file_path)
+        return data
+
+    # @abstractmethod
+    # def evaluate(self) -> Any: ...
