@@ -3,7 +3,7 @@ from __future__ import annotations
 import itertools
 import logging
 import random
-from abc import ABC, abstractmethod  # noqa: F401
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from statistics import mean, median
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -195,7 +195,7 @@ class SampleEvaluationResult:
         raise ValueError(msg)
 
 
-class BaseEvaluation(ABC):  # noqa: B024
+class BaseEvaluation(ABC):
     SEED: ClassVar[int] = 414242
 
     def __init__(self) -> None:
@@ -222,5 +222,5 @@ class BaseEvaluation(ABC):  # noqa: B024
         self.logger.info("Loaded %d records from %s", len(data), file_path)
         return data
 
-    # @abstractmethod
-    # def evaluate(self) -> Any: ...
+    @abstractmethod
+    def evaluate(self) -> Any: ...  # noqa: ANN401
