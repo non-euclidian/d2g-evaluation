@@ -75,6 +75,7 @@ class HumanVsHumanEvaluation(BaseEvaluation):
     def _process_sample(
         self,
         sample: dict,
+        text_field: str = "as_string",
         limit_annotators: int | None = None,
         **calculate_kwargs: Any,  # noqa: ANN401
     ) -> dict[str, dict | list[dict]]:
@@ -110,8 +111,8 @@ class HumanVsHumanEvaluation(BaseEvaluation):
         pairwise_results = []
         for ref_ann, cand_ann in prep_pairs:
             pair_result = self.interface_metrics.calculate(
-                reference=ref_ann["as_string"],
-                candidate=cand_ann["as_string"],
+                reference=ref_ann[text_field],
+                candidate=cand_ann[text_field],
                 **calculate_kwargs,
             )
             pairwise_results.append(
@@ -133,12 +134,14 @@ class HumanVsHumanEvaluation(BaseEvaluation):
         self,
         dataset: datasets.Dataset | str | pathlib.Path,
         *,
+        text_field: str = "as_string",
         limit_annotators: int | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        datasets_map_params: dict[str, Any] | None = None,
+        **calculate_kwargs: Any,  # noqa: ANN401
     ) -> datasets.Dataset:
-        self.logger.debug("Starting evaluation with kwargs: %s", kwargs)
+        self.logger.debug("Starting evaluation with kwargs: %s", calculate_kwargs)
 
-        if "metric_name" not in kwargs:
+        if "metric_name" not in calculate_kwargs:
             msg = "The 'metric_name' argument must be provided as a keyword argument."
             raise ValueError(msg)
 
@@ -146,11 +149,25 @@ class HumanVsHumanEvaluation(BaseEvaluation):
             self.load_hf_dataset_from_file(file_path=dataset) if isinstance(dataset, (str, pathlib.Path)) else dataset
         )
 
-        fn_kwargs = {"limit_annotators": limit_annotators, **kwargs}
+        fn_kwargs = {
+            "text_field": text_field,
+            "limit_annotators": limit_annotators,
+            **calculate_kwargs,
+        }
 
-        ds = dataset.map(
-            self._process_sample,
-            fn_kwargs=fn_kwargs,
-            load_from_cache_file=False,
-        )
+        default_map_params = {
+            "fn_kwargs": fn_kwargs,
+            "load_from_cache_file": False,
+            "remove_columns": dataset.column_names,
+            "desc": f"Evaluating with metric '{calculate_kwargs['metric_name']}'",
+        }
+
+        if datasets_map_params:
+            default_map_params.update(datasets_map_params)
+
+        self.logger.debug("Calling dataset.map() with parameters: %s", default_map_params)
+
+        print(default_map_params)
+
+        ds = dataset.map(self._process_sample, **default_map_params)
         return ds  # noqa: RET504

@@ -223,4 +223,4 @@ class BaseEvaluation(ABC):
         return data
 
     @abstractmethod
-    def evaluate(self) -> Any: ...  # noqa: ANN401
+    def evaluate(self, *args: Any, **kwargs: Any) -> Any: ...  # noqa: ANN401
