@@ -18,13 +18,24 @@ from d2g_evaluation.metrics.metrics_core import (
 class HumanVsHumanEvaluation(BaseEvaluation):
     INSUFFICIENT_ANNOTATIONS: ClassVar[int] = 2
 
+    # dataset output columns
+    SAMPLE_RESULT_COLUMN: ClassVar[str] = "sample_result"
+    PAIRWISE_RESULTS_COLUMN: ClassVar[str] = "pairwise_results"
+
+    # dataset speceific columns and fields
+    _TASK_ID_COLUMN: ClassVar[str] = "task_id"
+    _ANNOTATIONS_COLUMN: ClassVar[str] = "annotations"
+
+    _FILTER_CRITERION_FIELD: ClassVar[str] = "len_merged_spans"
+    _ANNOTATOR_ID_FIELD: ClassVar[str] = "annotated_by"
+
     def __init__(self) -> None:
         super().__init__()
 
     def _filter_annotations_with_no_text(self, annotations: list[dict]) -> list[dict]:
         """Remove annotations with no text (len_merged_spans == 0)."""
         self.logger.debug("Before filtering, number of annotations: %d", len(annotations))
-        filtered_annotations = [ann for ann in annotations if ann["len_merged_spans"] != 0]
+        filtered_annotations = [ann for ann in annotations if ann[self._FILTER_CRITERION_FIELD] != 0]
         self.logger.debug("After filtering, number of annotations: %d", len(filtered_annotations))
         return filtered_annotations
 
@@ -67,12 +78,12 @@ class HumanVsHumanEvaluation(BaseEvaluation):
         limit_annotators: int | None = None,
         **calculate_kwargs: Any,  # noqa: ANN401
     ) -> dict[str, dict | list[dict]]:
-        task_id = sample["task_id"]
+        task_id = sample[self._TASK_ID_COLUMN]
         metric_name = calculate_kwargs["metric_name"]
         self.logger.debug("Processing sample (task_id: %s) for metric '%s'", task_id, metric_name)
         self.logger.debug("Passed calculate_kwargs: %s", calculate_kwargs)
 
-        filtered_annotations = self._filter_annotations_with_no_text(annotations=sample["annotations"])
+        filtered_annotations = self._filter_annotations_with_no_text(annotations=sample[self._ANNOTATIONS_COLUMN])
 
         self.logger.debug(
             "Handle insufficient annotations (if less than %d annotations)...", self.INSUFFICIENT_ANNOTATIONS
@@ -107,8 +118,8 @@ class HumanVsHumanEvaluation(BaseEvaluation):
                 PairwiseEvaluationResult(
                     metric_computation=pair_result,
                     task_id=task_id,
-                    reference_id=ref_ann["annotated_by"],
-                    candidate_id=cand_ann["annotated_by"],
+                    reference_id=ref_ann[self._ANNOTATOR_ID_FIELD],
+                    candidate_id=cand_ann[self._ANNOTATOR_ID_FIELD],
                 )
             )
         sample_result = SampleEvaluationResult.from_pairwise_results(
