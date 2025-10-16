@@ -16,6 +16,7 @@ from d2g_evaluation.metrics.metrics_core import (
 
 
 class HumanVsHumanEvaluation(BaseEvaluation):
+    PIPELINE_NAME: ClassVar[str] = "eval_human_vs_human"
     INSUFFICIENT_ANNOTATIONS: ClassVar[int] = 2
 
     # dataset output columns
@@ -158,7 +159,7 @@ class HumanVsHumanEvaluation(BaseEvaluation):
         default_map_params = {
             "fn_kwargs": fn_kwargs,
             "load_from_cache_file": False,
-            "remove_columns": dataset.column_names,
+            # "remove_columns": dataset.column_names,
             "desc": f"Evaluating with metric '{calculate_kwargs['metric_name']}'",
         }
 
@@ -166,8 +167,6 @@ class HumanVsHumanEvaluation(BaseEvaluation):
             default_map_params.update(datasets_map_params)
 
         self.logger.debug("Calling dataset.map() with parameters: %s", default_map_params)
-
-        print(default_map_params)
 
         ds = dataset.map(self._process_sample, **default_map_params)
         return ds  # noqa: RET504
