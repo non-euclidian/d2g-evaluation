@@ -44,8 +44,21 @@ class MetadataStats:
         single_span_tasks = dataframe.filter(polars.col("len_merged_spans") >= 1)["task_id"].n_unique()
         single_span_annotations = dataframe.filter(polars.col("len_merged_spans") >= 1).height
 
-        multi_span_tasks = dataframe.filter(polars.col("len_merged_spans") >= multi_number)["task_id"].n_unique()
-        multi_span_annotations = dataframe.filter(polars.col("len_merged_spans") >= multi_number).height
+        # FIX: Count tasks with >= 2 valid annotations (not tasks with annotation having len_merged_spans >= 2)
+        # This matches the evaluation logic in HumanVsHumanEvaluation
+        task_annotation_counts = (
+            dataframe.filter(polars.col("len_merged_spans") >= 1)
+            .group_by("task_id")
+            .agg(polars.len().alias("valid_annotation_count"))
+        )
+        tasks_with_multi_valid = task_annotation_counts.filter(polars.col("valid_annotation_count") >= multi_number)
+        multi_span_tasks = tasks_with_multi_valid.shape[0]
+
+        # Count annotations in tasks that have >= 2 valid annotations
+        task_ids_with_multi = tasks_with_multi_valid["task_id"]
+        multi_span_annotations = dataframe.filter(
+            polars.col("task_id").is_in(task_ids_with_multi) & (polars.col("len_merged_spans") >= 1)
+        ).height
 
         summary = polars.DataFrame(
             {
@@ -95,11 +108,23 @@ class MetadataStats:
     ) -> polars.DataFrame:
         multi_number = 2
 
-        # filter for single span (>= 1)
+        # filter for single span (>= 1 valid annotation per task)
         single_span_df = dataframe.filter(polars.col("len_merged_spans") >= 1)
 
-        # filter for multi span (>= 2)
-        multi_span_df = dataframe.filter(polars.col("len_merged_spans") >= multi_number)
+        # FIX: filter for multi span (tasks with >= 2 valid annotations)
+        # First, identify tasks with >= 2 valid annotations
+        task_annotation_counts = (
+            dataframe.filter(polars.col("len_merged_spans") >= 1)
+            .group_by("task_id")
+            .agg(polars.len().alias("valid_annotation_count"))
+        )
+        tasks_with_multi_valid = task_annotation_counts.filter(polars.col("valid_annotation_count") >= multi_number)
+        task_ids_with_multi = tasks_with_multi_valid["task_id"]
+
+        # Then filter dataframe to only include annotations from those tasks (and with valid spans)
+        multi_span_df = dataframe.filter(
+            polars.col("task_id").is_in(task_ids_with_multi) & (polars.col("len_merged_spans") >= 1)
+        )
 
         # ==================== ANNOTATIONS (rows) ====================
         # calculate stats for all data
