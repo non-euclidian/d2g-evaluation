@@ -6,6 +6,7 @@ from labelstudio_snapshot.snapshot_preparation import SnapshotPreparationPipelin
 from labelstudio_snapshot.stats.stats_k_alpha_questions import KrippendorffAlphaQuestions
 from labelstudio_snapshot.stats.stats_self_confidence import SelfConfidenceStats
 from labelstudio_snapshot.stats.stats_time import TimeStats
+from labelstudio_snapshot.stats.stats_with_metadata import MetadataStats
 
 
 def run_prepare_snapshot(
@@ -59,6 +60,13 @@ def run_prepare_snapshot(
     _ = time_stats.calculate_time_by(
         dataframe=df_per_row,
         grouping_column="annotated_by",
+        save_dir=save_dir,
+    )
+
+    # calculate stats with metadata
+    metadata_stats = MetadataStats()
+    metadata_stats.calculate_stats_with_metadata(
+        dataframe=df_per_row,
         save_dir=save_dir,
     )
 
