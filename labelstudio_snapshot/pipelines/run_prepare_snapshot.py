@@ -9,11 +9,18 @@ from labelstudio_snapshot.stats.stats_time import TimeStats
 
 
 def run_prepare_snapshot(
-    path_to_json: str | pathlib.Path, save_dir: str | pathlib.Path = "ls_snapshot_output/demo"
+    path_to_json: str | pathlib.Path,
+    raw_samples_path: str | pathlib.Path,
+    save_dir: str | pathlib.Path = "ls_snapshot_output/demo",
 ) -> tuple[polars.DataFrame, polars.DataFrame]:
     pipeline = SnapshotPreparationPipeline()
 
-    df_per_row, df_per_task = pipeline.prepare_data(json_path=path_to_json, save_dir=save_dir)
+    # df_per_row, df_per_task = pipeline.prepare_data(json_path=path_to_json, save_dir=save_dir)
+    df_per_row, df_per_task = pipeline.prepare_data_with_metadata_restoration(
+        json_path=path_to_json,
+        raw_samples_path=raw_samples_path,
+        save_dir=save_dir,
+    )
 
     # calculate Krippendorff's alpha per question
     k_alpha_questions = KrippendorffAlphaQuestions()

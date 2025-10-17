@@ -215,6 +215,50 @@ class SnapshotPreparationPipeline:
 
         return dataframe_annotation_per_row, dataframe_annotation_per_task
 
+    def prepare_data_with_metadata_restoration(
+        self,
+        json_path: str | pathlib.Path,
+        raw_samples_path: str | pathlib.Path,
+        save_dir: str | pathlib.Path = "ls_snapshot_output",
+    ) -> tuple[polars.DataFrame, polars.DataFrame]:
+        df_per_row, df_per_task = self.prepare_data(json_path=json_path, save_dir=save_dir)
+
+        df_per_row_with_metadata = SnapshotMetadataRestorer.restore_minimal_metadata(
+            json_path=json_path,
+            raw_samples_path=raw_samples_path,
+            dataframe=df_per_row,
+            save_dir=save_dir,
+        )
+
+        df_per_task_with_metadata = SnapshotMetadataRestorer.restore_minimal_metadata(
+            json_path=json_path,
+            raw_samples_path=raw_samples_path,
+            dataframe=df_per_task,
+            save_dir=save_dir,
+        )
+        # save dataframes with metadata
+        save_dir_path = pathlib.Path(save_dir).joinpath("snapshot_prepared")
+
+        df_row_metadata_json_path = save_dir_path.joinpath(
+            "snapshot_prepared_annotation_per_row_with_metadata"
+        ).with_suffix(".json")
+        df_row_metadata_parquet_path = save_dir_path.joinpath(
+            "snapshot_prepared_annotation_per_row_with_metadata"
+        ).with_suffix(".parquet")
+        df_per_row_with_metadata.write_json(df_row_metadata_json_path)
+        df_per_row_with_metadata.write_parquet(df_row_metadata_parquet_path)
+
+        df_task_metadata_json_path = save_dir_path.joinpath(
+            "snapshot_prepared_annotation_per_task_with_metadata"
+        ).with_suffix(".json")
+        df_task_metadata_parquet_path = save_dir_path.joinpath(
+            "snapshot_prepared_annotation_per_task_with_metadata"
+        ).with_suffix(".parquet")
+        df_per_task_with_metadata.write_json(df_task_metadata_json_path)
+        df_per_task_with_metadata.write_parquet(df_task_metadata_parquet_path)
+
+        return df_per_row_with_metadata, df_per_task_with_metadata
+
 
 class SnapshotFieldExtractor:
     @staticmethod
@@ -243,3 +287,65 @@ class SnapshotSpanStrategies:
     @staticmethod
     def spans_to_list(spans: list[dict]) -> list[str]:
         return [span["text"] for span in spans]
+
+
+class SnapshotMetadataRestorer:
+    @staticmethod
+    def restore_minimal_metadata(
+        json_path: str | pathlib.Path,
+        raw_samples_path: str | pathlib.Path,
+        dataframe: polars.DataFrame,
+        save_dir: str | pathlib.Path = "ls_snapshot_output",
+    ) -> polars.DataFrame:
+        if not isinstance(json_path, pathlib.Path):
+            json_path = pathlib.Path(json_path)
+
+        if not isinstance(raw_samples_path, pathlib.Path):
+            raw_samples_path = pathlib.Path(raw_samples_path)
+
+        if not isinstance(save_dir, pathlib.Path):
+            save_dir = pathlib.Path(save_dir)
+
+        save_dir_path = pathlib.Path(save_dir).joinpath("snapshot_prepared")
+        save_dir_path.mkdir(parents=True, exist_ok=True)
+
+        lang_code = json_path.name.split("___")[0]
+        if not lang_code:
+            msg = f"Cannot extract language code from filename: {json_path.name}"
+            raise ValueError(msg)
+
+        paths_to_raw_samples = list(raw_samples_path.rglob(f"{lang_code}/**/*.parquet"))
+        if not paths_to_raw_samples:
+            msg = f"No raw sample files found for language code: {lang_code} in {raw_samples_path}"
+            raise ValueError(msg)
+
+        raw_samples_df = polars.read_parquet(
+            paths_to_raw_samples, columns=["filename_warc", "url", "timestamp", "filename_html"]
+        )
+
+        # print("Sample file_name values:")
+        # print(dataframe.select("file_name").head())
+        # print("\nExtracted pattern:")
+        # print(dataframe.select(polars.col("file_name").str.extract(r"-(.*?)_[^_]+\.html", 1)).head())
+        # print("\nSample filename_html values from raw_samples:")
+        # print(raw_samples_df.select("filename_html").head())
+
+        dataframe_with_metadata = dataframe.join(
+            raw_samples_df,
+            left_on=polars.col("file_name").str.extract(r"-(.*?)_[^_]+\.html", 1),
+            right_on="filename_html",
+            how="left",
+        )
+
+        dataframe_with_metadata_filtered = dataframe_with_metadata.drop_nulls(
+            subset=["filename_warc", "url", "timestamp", "filename_html"]
+        )
+        dataframe_with_metadata_filtered = dataframe_with_metadata_filtered.with_columns(
+            polars.col("filename_html").str.extract(r"^\d+_(.*)", 1).alias("collection")
+        ).drop("filename_html")
+
+        assert dataframe_with_metadata_filtered.height == dataframe.height, (
+            "Some rows were lost during metadata restoration!"
+        )
+
+        return dataframe_with_metadata_filtered
