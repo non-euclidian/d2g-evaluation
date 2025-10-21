@@ -40,10 +40,28 @@ class SnapshotPreparationPipeline:
 
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
+
         self.overlap_span_merger = SpanOverlapMerger()
 
         self.pseudonymizer = SnapshotPseudonymizer()
+
         self.email_mapping: dict[str, str] = {}
+        self.language: str | None = None
+
+    def _extract_language_from_filename(self, json_path: pathlib.Path) -> str:
+        """Extract language code from filename pattern {lang}___{other name}.json"""
+        filename = json_path.name
+        if "___" in filename:
+            lang = filename.split("___")[0]
+            if lang:
+                return lang
+        return "unknown_language"
+
+    def _determine_language(self, json_path: pathlib.Path, language: str | None = None) -> str:
+        """Determine language from parameter or filename, defaulting to 'unknown_language'"""
+        if language is not None:
+            return language
+        return self._extract_language_from_filename(json_path)
 
     def read_json(self, json_path: str | pathlib.Path) -> list[dict]:
         self.logger.info("Reading JSON from %s", json_path)
@@ -88,7 +106,12 @@ class SnapshotPreparationPipeline:
             )
             assert len(merged_overlapped_spans) == len(spans), "Merged spans and spans should have the same length"
 
+            if self.language is None:
+                msg = "Language must be specified before processing annotations"
+                raise ValueError(msg)
+
             return ProcessedData(
+                language=self.language,
                 task_id=task.id,
                 file_name=task.file_upload,
                 annotation_id=annotation.id,
@@ -148,8 +171,13 @@ class SnapshotPreparationPipeline:
         return df
 
     def load_and_process_data(
-        self, json_path: str | pathlib.Path
+        self,
+        json_path: str | pathlib.Path,
+        language: str | None = None,
     ) -> tuple[list[dict], list[LabelStudioTask], list[ProcessedData], polars.DataFrame]:
+        self.language = self._determine_language(json_path=pathlib.Path(json_path), language=language)
+        self.logger.info("Processing data with language: %s", self.language)
+
         json_data = self.read_json(json_path=json_path)
         structured_data = self.create_structured_data(json_data=json_data)
         processed_structured_data = self.process_structured_data(structured_data=structured_data)
@@ -186,9 +214,12 @@ class SnapshotPreparationPipeline:
         return grouped
 
     def prepare_data(
-        self, json_path: str | pathlib.Path, save_dir: str | pathlib.Path = "ls_snapshot_output"
+        self,
+        json_path: str | pathlib.Path,
+        save_dir: str | pathlib.Path = "ls_snapshot_output",
+        language: str | None = None,
     ) -> tuple[polars.DataFrame, polars.DataFrame]:
-        _, _, _, dataframe_annotation_per_row = self.load_and_process_data(json_path=json_path)
+        _, _, _, dataframe_annotation_per_row = self.load_and_process_data(json_path=json_path, language=language)
 
         save_dir_path = pathlib.Path(save_dir).joinpath("snapshot_prepared")
         save_dir_path.mkdir(parents=True, exist_ok=True)

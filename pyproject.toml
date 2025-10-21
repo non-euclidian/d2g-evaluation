@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 license-files = ["LICEN[CS]E*", "NOTICE*"]
 dynamic = ["version"]
 
-dependencies = ["rapidfuzz", "cydifflib", "numpy", "python-dotenv"]
+dependencies = ["rapidfuzz", "cydifflib", "numpy", "python-dotenv", "scipy"]
 
 [project.optional-dependencies]
 dev = ["pre-commit", "ruff", "pytest", "coverage", "mypy"]

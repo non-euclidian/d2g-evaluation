@@ -83,6 +83,7 @@ class LabelStudioTask:
 
 @pydantic.dataclasses.dataclass
 class ProcessedData:
+    language: str
     task_id: int
     file_name: str
     annotation_id: int
