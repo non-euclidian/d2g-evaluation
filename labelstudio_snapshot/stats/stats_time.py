@@ -96,13 +96,11 @@ class TimeStats:
         sub_savedir = pathlib.Path(save_dir).joinpath("stats")
         sub_savedir.mkdir(parents=True, exist_ok=True)
 
-        path_df_with_time_stats = sub_savedir.joinpath(f"time_stats_{grouping_column}").with_suffix(".csv")
+        path_df_with_time_stats = sub_savedir.joinpath(f"time_{grouping_column}").with_suffix(".csv")
         df_with_time_stats.write_csv(path_df_with_time_stats)
         self.logger.info("Saved time statistics by %s to %s", grouping_column, path_df_with_time_stats)
 
-        path_df_with_time_stats_overall = sub_savedir.joinpath(f"time_stats_overall_{grouping_column}").with_suffix(
-            ".csv"
-        )
+        path_df_with_time_stats_overall = sub_savedir.joinpath(f"time_overall_{grouping_column}").with_suffix(".csv")
         df_with_time_stats_with_overall.write_csv(path_df_with_time_stats_overall)
         self.logger.info("Saved overall time statistics by %s to %s", grouping_column, path_df_with_time_stats_overall)
         return df_with_time_stats, df_with_time_stats_with_overall

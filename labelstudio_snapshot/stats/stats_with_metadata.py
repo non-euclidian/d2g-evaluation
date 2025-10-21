@@ -27,10 +27,10 @@ class MetadataStats:
 
         _ = self._calculate_core(dataframe=dataframe, save_dir=sub_savedir, round_val=1)
         df_collection = self._prepare_stats_by(  # noqa: F841
-            dataframe=dataframe, column="collection", name="collection", save_dir=sub_savedir
+            dataframe=dataframe, column="collection", save_dir=sub_savedir
         )
         df_year = self._prepare_stats_by(  # noqa: F841
-            dataframe=dataframe, column="year", name="year", save_dir=sub_savedir
+            dataframe=dataframe, column="year", save_dir=sub_savedir
         )
 
     def _calculate_core(
@@ -44,7 +44,7 @@ class MetadataStats:
         single_span_tasks = dataframe.filter(polars.col("len_merged_spans") >= 1)["task_id"].n_unique()
         single_span_annotations = dataframe.filter(polars.col("len_merged_spans") >= 1).height
 
-        # FIX: Count tasks with >= 2 valid annotations (not tasks with annotation having len_merged_spans >= 2)
+        # Count tasks with >= 2 valid annotations (not tasks with annotation having len_merged_spans >= 2)
         # This matches the evaluation logic in HumanVsHumanEvaluation
         task_annotation_counts = (
             dataframe.filter(polars.col("len_merged_spans") >= 1)
@@ -98,14 +98,12 @@ class MetadataStats:
             ]
         )
 
-        path_file_summary = save_dir.joinpath("summary_stats").with_suffix(".csv")
+        path_file_summary = save_dir.joinpath("metadata_summary").with_suffix(".csv")
         summary.write_csv(path_file_summary)
 
         return summary
 
-    def _prepare_stats_by(
-        self, dataframe: polars.DataFrame, column: str, name: str, save_dir: pathlib.Path
-    ) -> polars.DataFrame:
+    def _prepare_stats_by(self, dataframe: polars.DataFrame, column: str, save_dir: pathlib.Path) -> polars.DataFrame:
         multi_number = 2
 
         # filter for single span (>= 1 valid annotation per task)
@@ -290,7 +288,7 @@ class MetadataStats:
             )
         )
 
-        file_name = f"cv_stats_{column}_{name}"
+        file_name = f"metadata_{column}"
         file_path = save_dir.joinpath(file_name).with_suffix(".csv")
         result.write_csv(file_path)
         return result
