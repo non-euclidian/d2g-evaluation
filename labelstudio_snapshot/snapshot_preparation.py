@@ -15,7 +15,7 @@ from labelstudio_snapshot.snapshot_dataclasses import Annotations, LabelStudioTa
 
 class SnapshotPreparationPipeline:
     ANNOTATIONS_COLUMN: ClassVar[str] = "annotations"
-    TASK_GROUPING_COLUMNS: ClassVar[list[str]] = ["task_id", "file_name", "html"]
+    TASK_GROUPING_COLUMNS: ClassVar[list[str]] = ["task_id", "file_name", "html", "language"]
     ANNOTATION_COUNT_COLUMN: ClassVar[str] = "annotation_count"
 
     AGGREGATED_ANNOTATION_FIELDS: ClassVar[list[str]] = [
