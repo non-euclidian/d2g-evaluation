@@ -351,20 +351,13 @@ class SnapshotMetadataRestorer:
             raise ValueError(msg)
 
         raw_samples_df = polars.read_parquet(
-            paths_to_raw_samples, columns=["filename_warc", "url", "timestamp", "filename_html"]
+            paths_to_raw_samples, columns=["filename_warc", "url", "timestamp", "filename_html", "html"]
         )
-
-        # print("Sample file_name values:")
-        # print(dataframe.select("file_name").head())
-        # print("\nExtracted pattern:")
-        # print(dataframe.select(polars.col("file_name").str.extract(r"-(.*?)_[^_]+\.html", 1)).head())
-        # print("\nSample filename_html values from raw_samples:")
-        # print(raw_samples_df.select("filename_html").head())
 
         dataframe_with_metadata = dataframe.join(
             raw_samples_df,
-            left_on=polars.col("file_name").str.extract(r"-(.*?)_[^_]+\.html", 1),
-            right_on="filename_html",
+            left_on="html",
+            right_on="html",
             how="left",
         )
 
@@ -376,7 +369,7 @@ class SnapshotMetadataRestorer:
         ).drop("filename_html")
 
         assert dataframe_with_metadata_filtered.height == dataframe.height, (
-            "Some rows were lost during metadata restoration!"
+            f"Some rows were lost during metadata restoration! Before: {dataframe.height}, After: {dataframe_with_metadata_filtered.height}"
         )
 
         return dataframe_with_metadata_filtered
