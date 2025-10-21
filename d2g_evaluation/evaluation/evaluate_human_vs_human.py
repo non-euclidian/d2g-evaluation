@@ -2,6 +2,9 @@ import pathlib
 from typing import Any, ClassVar
 
 import datasets  # type: ignore
+import numpy  # noqa: ICN001
+import polars  # noqa: ICN001
+from scipy.stats import bootstrap  # type: ignore
 
 from d2g_evaluation.evaluation.base_evaluation import (
     BaseEvaluation,
@@ -170,3 +173,137 @@ class HumanVsHumanEvaluation(BaseEvaluation):
 
         ds = dataset.map(self._process_sample, **default_map_params)
         return ds  # noqa: RET504
+
+    def create_report(self, evaluated_dataset: datasets.Dataset, min_comparisons: int = 1) -> polars.DataFrame:
+        dataframe = evaluated_dataset.to_polars()
+
+        assert dataframe.height == evaluated_dataset.num_rows, (
+            "Dataframe height does not match number of rows in the evaluated dataset."
+        )
+        assert dataframe.width == evaluated_dataset.num_columns, (
+            "Dataframe width does not match number of columns in the evaluated dataset."
+        )
+
+        # unnest the sample_result column
+        dataframe = dataframe.select(self.SAMPLE_RESULT_COLUMN).unnest(self.SAMPLE_RESULT_COLUMN)
+
+        # remove columns that contains only null values (it's unused columns for metrics)
+        dataframe = dataframe.select([col for col in dataframe.columns if not dataframe[col].is_null().all()])
+
+        # capture metadata before filtering
+        total_tasks_before = dataframe.height
+        total_comparisons_before = dataframe.select(polars.col("num_comparisons").sum()).item()
+
+        # get constant metadata fields (same across all rows)
+        metadata_cols = ["config_name", "is_symmetric", "is_symmetric_forced", "is_tokenized", "metric_name"]
+        metadata = dataframe.select(metadata_cols).head(1).to_dicts()[0]
+
+        # include only samples with at least `min_comparisons` pairwise comparisons
+        dataframe = dataframe.filter(polars.col("num_comparisons") >= min_comparisons)
+
+        # capture metadata after filtering
+        total_tasks_after = dataframe.height
+        total_comparisons_after = dataframe.select(polars.col("num_comparisons").sum()).item()
+
+        report_rows = []
+
+        # 1) Score-based metrics (only mean)
+        if "score" in dataframe.columns:
+            only_score = dataframe.select(polars.col("score").struct.field("mean")).to_numpy().flatten()
+
+            # Calculate mean of means
+            mean_of_mean = only_score.mean()
+
+            # Bootstrap confidence interval
+            results = bootstrap(
+                data=(only_score,),
+                statistic=numpy.mean,
+                n_resamples=10_000,
+                confidence_level=0.95,
+                method="BCa",
+                alternative="two-sided",
+                random_state=self.SEED,
+            )
+
+            report_rows.append(
+                {
+                    "metric": "score",
+                    "mean": float(mean_of_mean),
+                    "bootstrap_ci_low": float(results.confidence_interval.low),
+                    "bootstrap_ci_high": float(results.confidence_interval.high),
+                    "bootstrap_std_error": float(results.standard_error),
+                }
+            )
+
+        # 2) F-score-based metrics (precision, recall, F1, F2, F0.5)
+        fscore_metrics = ["precision", "recall", "f1", "f2", "f05"]
+
+        for metric in fscore_metrics:
+            if metric in dataframe.columns:
+                only_metric = dataframe.select(polars.col(metric).struct.field("mean")).to_numpy().flatten()
+
+                # Calculate mean of means
+                mean_of_metric = only_metric.mean()
+
+                # Bootstrap confidence interval
+                results = bootstrap(
+                    data=(only_metric,),
+                    statistic=numpy.mean,
+                    n_resamples=10_000,
+                    confidence_level=0.95,
+                    method="BCa",
+                    alternative="two-sided",
+                    random_state=self.SEED,
+                )
+
+                report_rows.append(
+                    {
+                        "metric": metric,
+                        "mean": float(mean_of_metric),
+                        "bootstrap_ci_low": float(results.confidence_interval.low),
+                        "bootstrap_ci_high": float(results.confidence_interval.high),
+                        "bootstrap_std_error": float(results.standard_error),
+                    }
+                )
+
+        # Create polars DataFrame from report rows
+        report_df = polars.DataFrame(report_rows)
+
+        # Add metadata columns to the report
+        report_df = report_df.with_columns(
+            [
+                polars.lit(metadata["config_name"]).alias("config_name"),
+                polars.lit(metadata["is_symmetric"]).alias("is_symmetric"),
+                polars.lit(metadata["is_symmetric_forced"]).alias("is_symmetric_forced"),
+                polars.lit(metadata["is_tokenized"]).alias("is_tokenized"),
+                polars.lit(metadata["metric_name"]).alias("metric_name"),
+                polars.lit(total_tasks_before).alias("total_tasks_before_filter"),
+                polars.lit(total_tasks_after).alias("total_tasks_after_filter"),
+                polars.lit(total_comparisons_before).alias("total_comparisons_before_filter"),
+                polars.lit(total_comparisons_after).alias("total_comparisons_after_filter"),
+                polars.lit(min_comparisons).alias("min_comparisons_threshold"),
+            ]
+        )
+
+        # Reorder columns for better readability
+        report_df = report_df.select(
+            [
+                "metric_name",
+                "config_name",
+                "is_symmetric",
+                "is_symmetric_forced",
+                "is_tokenized",
+                "metric",
+                "mean",
+                "bootstrap_ci_low",
+                "bootstrap_ci_high",
+                "bootstrap_std_error",
+                "total_tasks_before_filter",
+                "total_tasks_after_filter",
+                "total_comparisons_before_filter",
+                "total_comparisons_after_filter",
+                "min_comparisons_threshold",
+            ]
+        )
+
+        return report_df  # noqa: RET504
