@@ -10,15 +10,17 @@ from d2g_evaluation.evaluation.base_evaluation import (
 )
 
 
-class HumanVsHumanEvaluation(BaseEvaluation):
-    PIPELINE_NAME: ClassVar[str] = "eval_human_vs_human"
-    INSUFFICIENT_ANNOTATIONS: ClassVar[int] = 2
+class HumanVsToolEvaluation(BaseEvaluation):
+    """Evaluate tool outputs against human annotations."""
+
+    EVALUATION_TYPE: ClassVar[str] = "eval_human_vs_tool"
+    INSUFFICIENT_ANNOTATIONS: ClassVar[int] = 1  # for human vs tool it's possible to have 1 annotation
 
     # dataset output columns
-    SAMPLE_RESULT_COLUMN: ClassVar[str] = "sample_result_human_vs_human"
-    PAIRWISE_RESULTS_COLUMN: ClassVar[str] = "pairwise_results_human_vs_human"
+    SAMPLE_RESULT_COLUMN: ClassVar[str] = "sample_result_human_vs_tool"
+    PAIRWISE_RESULTS_COLUMN: ClassVar[str] = "pairwise_results_human_vs_tool"
 
-    # dataset speceific columns and fields
+    # dataset specific columns and fields
     _TASK_ID_COLUMN: ClassVar[str] = "task_id"
     _ANNOTATIONS_COLUMN: ClassVar[str] = "annotations"
 
@@ -31,13 +33,21 @@ class HumanVsHumanEvaluation(BaseEvaluation):
     def _process_sample(
         self,
         sample: dict,
+        tool_column: str,
+        tool_name: str,
         text_field: str = "as_string",
         limit_annotators: int | None = None,
         **calculate_kwargs: Any,  # noqa: ANN401
     ) -> dict[str, dict | list[dict]]:
         task_id = sample[self._TASK_ID_COLUMN]
         metric_name = calculate_kwargs["metric_name"]
-        self.logger.debug("Processing sample (task_id: %s) for metric '%s'", task_id, metric_name)
+
+        task_id = sample[self._TASK_ID_COLUMN]
+        metric_name = calculate_kwargs["metric_name"]
+
+        self.logger.debug(
+            "Processing sample (task_id=%s) with tool '%s' using metric '%s'", task_id, tool_name, metric_name
+        )
         self.logger.debug("Passed calculate_kwargs: %s", calculate_kwargs)
 
         filtered_annotations = self._filter_annotations_with_no_text(annotations=sample[self._ANNOTATIONS_COLUMN])
@@ -60,36 +70,42 @@ class HumanVsHumanEvaluation(BaseEvaluation):
             filtered_annotations = self.sample_with_limit(items=filtered_annotations, limit=limit_annotators)
             self.logger.debug("Number of annotations after limiting: %d", len(filtered_annotations))
 
-        self.logger.debug("Compute pairwise comparisons...")
-        prep_pairs = self.generate_pairwise_combinations(items=filtered_annotations)
-        self.logger.debug("Number of pairwise combinations: %d", len(prep_pairs))
+        prep_pairs = self.generate_one_to_many_pairs(
+            main_item=sample[tool_column],
+            items=filtered_annotations,
+        )
 
         pairwise_results = []
-        for ref_ann, cand_ann in prep_pairs:
+
+        for tool_output, annotation in prep_pairs:
             pair_result = self.interface_metrics.calculate(
-                reference=ref_ann[text_field],
-                candidate=cand_ann[text_field],
+                reference=annotation[text_field],
+                candidate=tool_output,
                 **calculate_kwargs,
             )
             pairwise_results.append(
                 PairwiseEvaluationResult(
                     metric_computation=pair_result,
                     task_id=task_id,
-                    reference_id=ref_ann[self._ANNOTATOR_ID_FIELD],
-                    candidate_id=cand_ann[self._ANNOTATOR_ID_FIELD],
+                    reference_id=annotation[self._ANNOTATOR_ID_FIELD],
+                    candidate_id=tool_name,
                 )
             )
+
         sample_result = SampleEvaluationResult.from_pairwise_results(
             metric_name=metric_name,
             task_id=task_id,
             pairwise_results=pairwise_results,
         )
+
         return self._build_result_dict(sample_result=sample_result, pairwise_results=pairwise_results)
 
-    def evaluate(
+    def evaluate(  # noqa: PLR0913
         self,
         dataset: datasets.Dataset | str | pathlib.Path,
         *,
+        tool_column: str,
+        tool_name: str,
         text_field: str = "as_string",
         limit_annotators: int | None = None,
         datasets_map_params: dict[str, Any] | None = None,
@@ -106,6 +122,8 @@ class HumanVsHumanEvaluation(BaseEvaluation):
         )
 
         fn_kwargs = {
+            "tool_column": tool_column,
+            "tool_name": tool_name,
             "text_field": text_field,
             "limit_annotators": limit_annotators,
             **calculate_kwargs,

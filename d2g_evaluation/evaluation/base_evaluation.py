@@ -8,6 +8,10 @@ from dataclasses import asdict, dataclass
 from statistics import mean, median
 from typing import TYPE_CHECKING, Any, ClassVar
 
+import numpy  # noqa: ICN001
+import polars  # noqa: ICN001
+from scipy.stats import bootstrap  # type: ignore
+
 from d2g_evaluation.dataloader.base_dataloader import D2GDataLoader
 from d2g_evaluation.metrics.interface_metrics import InterfaceMetrics
 from d2g_evaluation.metrics.metrics_core import (
@@ -198,6 +202,15 @@ class SampleEvaluationResult:
 class BaseEvaluation(ABC):
     SEED: ClassVar[int] = 414242
 
+    PIPELINE_NAME: ClassVar[str] = "base_evaluation_pipeline"
+    INSUFFICIENT_ANNOTATIONS: ClassVar[int] = 9999  # to be overridden in subclasses
+
+    # dataset output columns
+    SAMPLE_RESULT_COLUMN: ClassVar[str] = "sample_result"
+    PAIRWISE_RESULTS_COLUMN: ClassVar[str] = "pairwise_results"
+
+    _FILTER_CRITERION_FIELD: ClassVar[str] = "base_eval_filter_field"  # to be overridden in subclasses
+
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
         self.rng_generator = random.Random(self.SEED)
@@ -222,5 +235,179 @@ class BaseEvaluation(ABC):
         self.logger.info("Loaded %d records from %s", len(data), file_path)
         return data
 
+    def _filter_annotations_with_no_text(self, annotations: list[dict]) -> list[dict]:
+        """Remove annotations with no text (len_merged_spans == 0)."""
+        self.logger.debug("Before filtering, number of annotations: %d", len(annotations))
+        filtered_annotations = [ann for ann in annotations if ann[self._FILTER_CRITERION_FIELD] != 0]
+        self.logger.debug("After filtering, number of annotations: %d", len(filtered_annotations))
+        return filtered_annotations
+
+    def _handle_insufficient_annotations(
+        self,
+        task_id: int | str | None,
+        num_annotations: int,
+        metric_name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics | str,
+    ) -> tuple[SampleEvaluationResult, list[PairwiseEvaluationResult]]:
+        """Handle samples with insufficient valid annotations."""
+        self.logger.warning(
+            "Sample with (task_id: %s) has less than %d valid annotations after filtering. Skipping.",
+            task_id,
+            self.INSUFFICIENT_ANNOTATIONS,
+        )
+        sample_result = SampleEvaluationResult.from_pairwise_results(metric_name=metric_name, task_id=task_id)
+        pairwise_results = [
+            PairwiseEvaluationResult(
+                metric_computation=None,
+                task_id=task_id,
+                reference_id=None,
+                candidate_id=None,
+            )
+            for _ in range(num_annotations)
+        ]
+        return sample_result, pairwise_results
+
+    def _build_result_dict(
+        self, sample_result: SampleEvaluationResult, pairwise_results: list[PairwiseEvaluationResult]
+    ) -> dict[str, dict | list[dict]]:
+        """Convert evaluation results to dictionary format."""
+        return {
+            self.SAMPLE_RESULT_COLUMN: sample_result.to_dict(),
+            self.PAIRWISE_RESULTS_COLUMN: [pr.to_dict() for pr in pairwise_results],
+        }
+
     @abstractmethod
     def evaluate(self, *args: Any, **kwargs: Any) -> Any: ...  # noqa: ANN401
+
+    def create_report(self, evaluated_dataset: datasets.Dataset, min_comparisons: int = 1) -> polars.DataFrame:
+        dataframe = evaluated_dataset.to_polars()
+
+        assert dataframe.height == evaluated_dataset.num_rows, (
+            "Dataframe height does not match number of rows in the evaluated dataset."
+        )
+        assert dataframe.width == evaluated_dataset.num_columns, (
+            "Dataframe width does not match number of columns in the evaluated dataset."
+        )
+
+        # unnest the sample_result column
+        dataframe = dataframe.select(self.SAMPLE_RESULT_COLUMN).unnest(self.SAMPLE_RESULT_COLUMN)
+
+        # remove columns that contains only null values (it's unused columns for metrics)
+        dataframe = dataframe.select([col for col in dataframe.columns if not dataframe[col].is_null().all()])
+
+        # capture metadata before filtering
+        total_tasks_before = dataframe.height
+        total_comparisons_before = dataframe.select(polars.col("num_comparisons").sum()).item()
+
+        # get constant metadata fields (same across all rows)
+        metadata_cols = ["config_name", "is_symmetric", "is_symmetric_forced", "is_tokenized", "metric_name"]
+        metadata = dataframe.select(metadata_cols).head(1).to_dicts()[0]
+
+        # include only samples with at least `min_comparisons` pairwise comparisons
+        dataframe = dataframe.filter(polars.col("num_comparisons") >= min_comparisons)
+
+        # capture metadata after filtering
+        total_tasks_after = dataframe.height
+        total_comparisons_after = dataframe.select(polars.col("num_comparisons").sum()).item()
+
+        report_rows = []
+
+        # 1) Score-based metrics (only mean)
+        if "score" in dataframe.columns:
+            only_score = dataframe.select(polars.col("score").struct.field("mean")).to_numpy().flatten()
+
+            # Calculate mean of means
+            mean_of_mean = only_score.mean()
+
+            # Bootstrap confidence interval
+            results = bootstrap(
+                data=(only_score,),
+                statistic=numpy.mean,
+                n_resamples=10_000,
+                confidence_level=0.95,
+                method="BCa",
+                alternative="two-sided",
+                random_state=self.SEED,
+            )
+
+            report_rows.append(
+                {
+                    "metric": "score",
+                    "mean": float(mean_of_mean),
+                    "bootstrap_ci_low": float(results.confidence_interval.low),
+                    "bootstrap_ci_high": float(results.confidence_interval.high),
+                    "bootstrap_std_error": float(results.standard_error),
+                }
+            )
+
+        # 2) F-score-based metrics (precision, recall, F1, F2, F0.5)
+        fscore_metrics = ["precision", "recall", "f1", "f2", "f05"]
+
+        for metric in fscore_metrics:
+            if metric in dataframe.columns:
+                only_metric = dataframe.select(polars.col(metric).struct.field("mean")).to_numpy().flatten()
+
+                # Calculate mean of means
+                mean_of_metric = only_metric.mean()
+
+                # Bootstrap confidence interval
+                results = bootstrap(
+                    data=(only_metric,),
+                    statistic=numpy.mean,
+                    n_resamples=10_000,
+                    confidence_level=0.95,
+                    method="BCa",
+                    alternative="two-sided",
+                    random_state=self.SEED,
+                )
+
+                report_rows.append(
+                    {
+                        "metric": metric,
+                        "mean": float(mean_of_metric),
+                        "bootstrap_ci_low": float(results.confidence_interval.low),
+                        "bootstrap_ci_high": float(results.confidence_interval.high),
+                        "bootstrap_std_error": float(results.standard_error),
+                    }
+                )
+
+        # Create polars DataFrame from report rows
+        report_df = polars.DataFrame(report_rows)
+
+        # Add metadata columns to the report
+        report_df = report_df.with_columns(
+            [
+                polars.lit(metadata["config_name"]).alias("config_name"),
+                polars.lit(metadata["is_symmetric"]).alias("is_symmetric"),
+                polars.lit(metadata["is_symmetric_forced"]).alias("is_symmetric_forced"),
+                polars.lit(metadata["is_tokenized"]).alias("is_tokenized"),
+                polars.lit(metadata["metric_name"]).alias("metric_name"),
+                polars.lit(total_tasks_before).alias("total_tasks_before_filter"),
+                polars.lit(total_tasks_after).alias("total_tasks_after_filter"),
+                polars.lit(total_comparisons_before).alias("total_comparisons_before_filter"),
+                polars.lit(total_comparisons_after).alias("total_comparisons_after_filter"),
+                polars.lit(min_comparisons).alias("min_comparisons_threshold"),
+            ]
+        )
+
+        # Reorder columns for better readability
+        report_df = report_df.select(
+            [
+                "metric_name",
+                "config_name",
+                "is_symmetric",
+                "is_symmetric_forced",
+                "is_tokenized",
+                "metric",
+                "mean",
+                "bootstrap_ci_low",
+                "bootstrap_ci_high",
+                "bootstrap_std_error",
+                "total_tasks_before_filter",
+                "total_tasks_after_filter",
+                "total_comparisons_before_filter",
+                "total_comparisons_after_filter",
+                "min_comparisons_threshold",
+            ]
+        )
+
+        return report_df  # noqa: RET504
