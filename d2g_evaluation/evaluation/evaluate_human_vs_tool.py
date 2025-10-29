@@ -14,7 +14,7 @@ class HumanVsToolEvaluation(BaseEvaluation):
     """Evaluate tool outputs against human annotations."""
 
     EVALUATION_TYPE: ClassVar[str] = "eval_human_vs_tool"
-    INSUFFICIENT_ANNOTATIONS: ClassVar[int] = 1  # for human vs tool it's possible to have 1 annotation
+    INSUFFICIENT_ANNOTATIONS: ClassVar[int] = 2  # for human vs tool it's possible to have 1 annotation
 
     # dataset output columns
     SAMPLE_RESULT_COLUMN: ClassVar[str] = "sample_result_human_vs_tool"

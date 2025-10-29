@@ -233,7 +233,7 @@ class InterfaceMetrics:
         *,
         reference: str | list[str],
         candidate: str | list[str],
-        is_symmetric_forced: bool = True,
+        is_symmetric_forced: bool = False,
         metric_name: ImplementedRapidFuzzMetrics | ImplementedCyDiffLibMetrics | ImplementedCustomMetrics | str,
         operation: RapidFuzzOperation | CyDiffLibOperation | None = None,
         string_preprocessing_method: ImplementedStringPreprocessing | str | None = None,
