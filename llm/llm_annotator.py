@@ -43,7 +43,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 API_KEY = os.getenv("LLM_API_KEY")
 ANNOTATION_FILE = "results.jsonl"
 FAILURES_FILE = "failures.jsonl"
-CONCURRENT_REQUESTS = 5
+CONCURRENT_REQUESTS_DEFAULT = 5
 MAX_RETRIES = 5
 
 # ======================================
@@ -87,7 +87,7 @@ def load_config(config_path: str) -> dict[str, Any]:
     }
 
     if "concurrent_requests" not in config:
-        config["concurrent_requests"] = CONCURRENT_REQUESTS
+        config["concurrent_requests"] = CONCURRENT_REQUESTS_DEFAULT
 
     for key, expected_type in schema.items():
         if key not in config:
@@ -105,7 +105,7 @@ def load_config(config_path: str) -> dict[str, Any]:
     return config
 
 
-def get_output_path_for_config(filename: str, config: dict[str, Any]) -> str:
+def get_output_path_from_config(filename: str, config: dict[str, Any]) -> str:
     return_value = Path("llm/.annotations") / config["name"] / filename
     # create missing directories if they don't exist yet.
     # if they exist, do nothing.
@@ -219,7 +219,7 @@ async def call_llm(session: aiohttp.ClientSession, doc: dict[str, Any], config: 
 
 
 async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> None:
-    processed = load_processed_ids(get_output_path_for_config(ANNOTATION_FILE, config))
+    processed = load_processed_ids(get_output_path_from_config(ANNOTATION_FILE, config))
     sem = asyncio.Semaphore(config["concurrent_requests"])
     output_lock = asyncio.Lock()
     fail_lock = asyncio.Lock()
@@ -251,7 +251,7 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
                         "annotations": annotations,
                     }
                     async with output_lock:
-                        save_jsonl_line(result, get_output_path_for_config(ANNOTATION_FILE, config))
+                        save_jsonl_line(result, get_output_path_from_config(ANNOTATION_FILE, config))
                         processed.add(doc["task_id"])
                     logger.info(f"Processed {doc['task_id']}")  # noqa
                 except Exception as e:  # noqa BLE001
@@ -266,7 +266,7 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
                                 "task_id": doc["task_id"],
                                 "error": f"{e}\n{traceback_text}",
                             },
-                            get_output_path_for_config(FAILURES_FILE, config),
+                            get_output_path_from_config(FAILURES_FILE, config),
                         )
 
                     logger.error(f"Failed {doc.get('task_id')}: {e}\n{traceback_text}")  # noqa
