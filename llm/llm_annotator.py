@@ -30,7 +30,6 @@ import logging
 import os
 import time
 import traceback
-import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -39,8 +38,10 @@ import aiohttp
 import polars as pl
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
+from .connectors import LLMConnector, OpenRouterConnector, RetryableAPIError
+
 # ============ Configuration ============
-API_KEY = os.getenv("LLM_API_KEY")
+API_KEY = str(os.getenv("LLM_API_KEY"))
 ANNOTATION_FILE = "results.jsonl"
 FAILURES_FILE = "failures.jsonl"
 CONCURRENT_REQUESTS_DEFAULT = 5
@@ -50,6 +51,8 @@ MAX_RETRIES = 5
 
 
 # ---------- Logging ----------
+
+
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger(__name__)
 
@@ -146,37 +149,23 @@ def save_jsonl_line(obj: dict, path: str) -> None:
         f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
-def preprocess_annotations(raw_annotations: str) -> str:
-    "Remove LLM formatting that breaks JSON parsing if present"
+def get_connector_from_config(config: dict[str, Any]) -> LLMConnector:
+    connector_name = config.get("connector")
+    if connector_name is None:
+        raise ValueError("Missing 'connector' in config.")  # noqa
 
-    return_value = unicodedata.normalize("NFKC", raw_annotations)
-    # Markdown formatting, zero-width space
-    replacements = ["```json", "```", "\u200b"]
-    for r in replacements:
-        return_value = return_value.replace(r, "")
+    supported_providers = {
+        "openrouter": OpenRouterConnector,
+    }
 
-    return return_value.strip()
+    connector_cls = supported_providers.get(connector_name)
+    if connector_cls is None:
+        raise ValueError(f"Unsupported connector: {connector_name}")  # noqa
 
-
-def extract_annotations(response_text: str) -> dict[str, Any]:
-    return_value = ""
-    try:
-        data = json.loads(response_text)
-        model_response = data["choices"][0]["message"]["content"]
-        return_value = preprocess_annotations(model_response)
-        return_value = json.loads(return_value)["annotations"]
-
-    except Exception as e:
-        raise ValueError(f"Couldn't process API server response:\n{response_text}") from e  # noqa
-
-    return return_value
+    return connector_cls(api_key=API_KEY, config=config)
 
 
 # ---------- API Call ----------
-
-
-class RetryableAPIError(Exception):
-    pass
 
 
 @retry(
@@ -184,35 +173,12 @@ class RetryableAPIError(Exception):
     stop=stop_after_attempt(MAX_RETRIES),
     retry=retry_if_exception_type(RetryableAPIError),
 )
-async def call_llm(session: aiohttp.ClientSession, doc: dict[str, Any], config: dict[str, Any]) -> str:
-    payload = {
-        "model": config["model"],
-        "temperature": 0.0,
-        "messages": [
-            {"role": "system", "content": config["prompt"]["system"]},
-            {"role": "user", "content": config["prompt"]["user"].format(html=doc["html"])},
-        ],
-        "provider": {
-            # Gotcha: Reproducibility. Good for debugging,
-            # but different providers may be using different quantizations,
-            # leading to different results across runs.
-            "sort": "latency",
-        },
-    }
-
-    async with session.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=120,  # type: ignore[arg-type]
-    ) as r:
-        response_text = await r.text()
-        if r.status == 200:  # noqa PLR2004 No magic: HTTP status code 200 is a well-known number.
-            return response_text
-
-        if r.status in (429, 500, 502, 503, 504):
-            raise RetryableAPIError(f"Retryable API error {r.status}: {response_text}")  # noqa
-        raise Exception(f"Non-retryable API error {r.status}: {response_text}")  # noqa
+async def call_llm(
+    connector: LLMConnector,
+    session: aiohttp.ClientSession,
+    doc: dict[str, Any],
+) -> dict[str, Any]:
+    return await connector.call_llm(session, doc)
 
 
 # ---------- Processing Loop ----------
@@ -223,6 +189,7 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
     sem = asyncio.Semaphore(config["concurrent_requests"])
     output_lock = asyncio.Lock()
     fail_lock = asyncio.Lock()
+    connector = get_connector_from_config(config)
 
     async with aiohttp.ClientSession() as session:
 
@@ -237,8 +204,7 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
             async with sem:
                 start_time = time.perf_counter()
                 try:
-                    result_text = await call_llm(session, doc, config)
-                    annotations = extract_annotations(result_text)
+                    parsed_response = await call_llm(connector, session, doc)
                     duration_ms = (time.perf_counter() - start_time) * 1000
                     duration_ms = round(duration_ms)
                     timestamp = datetime.now(UTC).strftime("%d/%m/%Y %H:%M:%S")
@@ -248,7 +214,8 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
                         "model": config["model"],
                         "task_id": doc["task_id"],
                         "duration_ms": duration_ms,
-                        "annotations": annotations,
+                        "annotations": parsed_response["annotations"],
+                        "total_tokens": parsed_response["total_tokens"],
                     }
                     async with output_lock:
                         save_jsonl_line(result, get_output_path_from_config(ANNOTATION_FILE, config))
