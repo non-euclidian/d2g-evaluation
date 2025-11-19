@@ -35,6 +35,7 @@ class ImplementedCustomMetrics(StrEnum):
     GREEDY_SEQUENTIAL_TOKEN_MATCHING = "greedy_sequential_token_matching"
     UNORDERED_TOKEN_MATCHING = "unordered_token_matching"
     LCS_TOKEN_MATCHING = "lcs_token_matching"
+    RATCLIFF_OBERSHELP_TOKEN_MATCHING = "ratcliff_obershelp_token_matching"
 
 
 @unique

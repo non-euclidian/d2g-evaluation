@@ -214,6 +214,33 @@ class CustomMetrics:
             false_negative=false_negative,
         )
 
+    @staticmethod
+    def ratcliff_obershelp_token_matching(reference: list[str], candidate: list[str]) -> FScoreMetricResult:
+        sm = SequenceMatcher(isjunk=None, a=reference, b=candidate, autojunk=False)
+
+        tp = fp = fn = 0
+
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == "equal":
+                tp += i2 - i1  # Matched tokens
+            elif tag == "delete":
+                fn += i2 - i1  # Reference tokens missing in candidate
+            elif tag == "insert":
+                fp += j2 - j1  # Candidate tokens not in reference
+            elif tag == "replace":
+                fn += i2 - i1  # Reference side of mismatch
+                fp += j2 - j1  # Candidate side of mismatch
+
+        return FScoreMetricResult(
+            metric_name=ImplementedCustomMetrics.RATCLIFF_OBERSHELP_TOKEN_MATCHING,
+            reference_length=len(reference),
+            candidate_length=len(candidate),
+            is_symmetric=True,
+            true_positive=tp,
+            false_positive=fp,
+            false_negative=fn,
+        )
+
 
 class CustomTokenMetricsWrapper(BaseMetricWrapper):
     _BACKEND: ClassVar[MetricBackend] = MetricBackend.OTHER
@@ -221,6 +248,7 @@ class CustomTokenMetricsWrapper(BaseMetricWrapper):
         ImplementedCustomMetrics.GREEDY_SEQUENTIAL_TOKEN_MATCHING: CustomMetrics.greedy_sequential_token_matching,
         ImplementedCustomMetrics.UNORDERED_TOKEN_MATCHING: CustomMetrics.unordered_token_matching,
         ImplementedCustomMetrics.LCS_TOKEN_MATCHING: CustomMetrics.lcs_token_matching,
+        ImplementedCustomMetrics.RATCLIFF_OBERSHELP_TOKEN_MATCHING: CustomMetrics.ratcliff_obershelp_token_matching,
     }
 
     def __init__(self, metric_name: ImplementedCustomMetrics) -> None:

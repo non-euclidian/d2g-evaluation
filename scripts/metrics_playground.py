@@ -174,6 +174,8 @@ if __name__ == "__main__":
 
     ref_text = "This is a sample text! Now with more text."
     cand_text = "Have thsi. This is a sample text!"
+    # ref_text = "ABCDE"
+    # cand_text = "XABCY"
 
     playground.demo_all_string_metrics(
         reference=ref_text,
