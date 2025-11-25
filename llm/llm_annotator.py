@@ -38,7 +38,7 @@ import aiohttp
 import polars as pl
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from .connectors import LLMConnector, OpenRouterConnector, RetryableAPIError
+from llm.connectors import LLMConnector, OpenRouterConnector, RetryableAPIError
 
 # ============ Configuration ============
 API_KEY = str(os.getenv("LLM_API_KEY"))
