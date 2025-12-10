@@ -44,6 +44,7 @@ from llm.connectors import LLMConnector, OpenRouterConnector, RetryableAPIError
 API_KEY = str(os.getenv("LLM_API_KEY"))
 ANNOTATION_FILE = "results.jsonl"
 FAILURES_FILE = "failures.jsonl"
+RUN_CONFIG = "config.json"
 CONCURRENT_REQUESTS_DEFAULT = 5
 MAX_RETRIES = 5
 
@@ -60,27 +61,41 @@ logger = logging.getLogger(__name__)
 # ---------- Helpers ----------
 
 
-def load_config(config_path: str) -> dict[str, Any]:
+def load_config(config: str) -> dict[str, Any]:
     """
-    Load reproducible run configuration from a JSON file.
+    Load reproducible run configuration from the provided string.
+    Accepts either a dictionary or path to JSON configuration file.
 
-    Expected keys:
+    Expected config keys:
       - model (str)
       - connector (str), e.g. 'openrouter'
       - prompt (dict), including 'system' and 'user' prompts
 
-    Optional keys:
+    Optional config keys:
       - concurrent_requests (int). Used to prevent rate limiting. The default value is set in CONCURRENT_REQUESTS
 
     Args:
-        config_path (str): Path to the JSON config file.
+        config (str): Dictionary containing configuration values or path to the JSON config file.
 
     Raises:
         ValueError: If required keys are missing or have wrong types.
     """
-    p = Path(config_path)
-    with p.open(encoding="utf-8") as f:
-        config = json.load(f)
+    config_autoname = None
+
+    try:
+        config = json.loads(config)
+        if "model" in config and config["model"] and isinstance(config["model"], str):
+            # keep last part of a name like 'deepseek/model-x1'
+            config["model"] = config["model"].rstrip("/")  # edge case: trailing slash
+            config_autoname = config["model"].split("/")[-1]
+    except json.JSONDecodeError:
+        pass
+
+    if not isinstance(config, dict):
+        p = Path(config)
+        with p.open(encoding="utf-8") as f:
+            config = json.load(f)
+            config_autoname = p.name.replace(".config", "")
 
     schema = {
         "model": str,
@@ -103,12 +118,15 @@ def load_config(config_path: str) -> dict[str, Any]:
                 f"Config key {key} must be of type {expected_type.__name__}, got {config[key]}"  # noqa
             ) from err
 
-    config["name"] = p.name.replace(".config", "")
+    if "name" not in config or not config["name"]:
+        logger.warning(f"'name' missing from config. Using {config_autoname} as experiment name instead. ")  # noqa G004
+        config["name"] = config_autoname
+    logger.info(f"Loaded config {config}")  # noqa G004
 
     return config
 
 
-def get_output_path_from_config(filename: str, config: dict[str, Any]) -> str:
+def get_output_path_for_config(filename: str, config: dict[str, Any]) -> str:
     return_value = Path("llm/.annotations") / config["name"] / filename
     # create missing directories if they don't exist yet.
     # if they exist, do nothing.
@@ -118,6 +136,7 @@ def get_output_path_from_config(filename: str, config: dict[str, Any]) -> str:
 
 
 def load_docs(path: str) -> list[dict[str, Any]]:
+    logger.info(f"Loading dataset from {path}")  # noqa G004
     p = Path(path)
     if p.suffix == ".parquet":
         df = pl.read_parquet(path)
@@ -129,6 +148,7 @@ def load_docs(path: str) -> list[dict[str, Any]]:
 
 def load_processed_ids(path: str) -> set[str]:
     """Return task_ids already processed successfully, so that they can be skipped."""
+    logger.info(f"Loading existing LLM annotations from {path}")  # noqa G004
     p = Path(path)
     if not p.exists():
         return set()
@@ -185,7 +205,7 @@ async def call_llm(
 
 
 async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> None:
-    processed = load_processed_ids(get_output_path_from_config(ANNOTATION_FILE, config))
+    processed = load_processed_ids(get_output_path_for_config(ANNOTATION_FILE, config))
     sem = asyncio.Semaphore(config["concurrent_requests"])
     output_lock = asyncio.Lock()
     fail_lock = asyncio.Lock()
@@ -218,7 +238,7 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
                         "total_tokens": parsed_response["total_tokens"],
                     }
                     async with output_lock:
-                        save_jsonl_line(result, get_output_path_from_config(ANNOTATION_FILE, config))
+                        save_jsonl_line(result, get_output_path_for_config(ANNOTATION_FILE, config))
                         processed.add(doc["task_id"])
                     logger.info(f"Processed {doc['task_id']}")  # noqa
                 except Exception as e:  # noqa BLE001
@@ -233,7 +253,7 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
                                 "task_id": doc["task_id"],
                                 "error": f"{e}\n{traceback_text}",
                             },
-                            get_output_path_from_config(FAILURES_FILE, config),
+                            get_output_path_for_config(FAILURES_FILE, config),
                         )
 
                     logger.error(f"Failed {doc.get('task_id')}: {e}\n{traceback_text}")  # noqa
@@ -271,6 +291,10 @@ if __name__ == "__main__":
     args = parse_args()
     config = load_config(args.config)
     docs = load_docs(args.input)[: args.max_docs]
-    logger.info(f"Loaded {len(docs)} documents.")  # noqa G004
+    logger.info(f"Loaded {len(docs)} documents")  # noqa G004
+    # copy config to experimental run directory for reproducibility
+    run_config_path = get_output_path_for_config(RUN_CONFIG, config)
+    with Path.open(run_config_path, "w") as f:
+        json.dump(config, f, indent=2)
     asyncio.run(process_docs(docs, config))
     logger.info("Processing complete.")
