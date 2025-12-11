@@ -1,13 +1,14 @@
 import json
-import unicodedata
 from abc import ABC, abstractmethod
 from typing import Any
 
 import aiohttp
 
+from llm.preprocessors import FaultTolerantJsonPreprocessor, HtmlRemover
+
 
 class RetryableAPIError(Exception):
-    """Signals that request may succeed if retried."""
+    """Signals that API request may succeed if retried."""
 
 
 class LLMConnector(ABC):
@@ -17,6 +18,7 @@ class LLMConnector(ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.config = config
+        self.annotation_processors = [FaultTolerantJsonPreprocessor(), HtmlRemover()]
 
     @abstractmethod
     def _create_payload_from(self, doc: dict[str, Any]) -> dict[str, Any]:
@@ -39,7 +41,7 @@ class LLMConnector(ABC):
             self.base_url,
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
             json=payload,
-            timeout=120,  # type: ignore[arg-type]
+            timeout=180,  # type: ignore[arg-type]
         ) as r:
             response_text = await r.text()
             if r.status == 200:  # noqa PLR2004 No magic: HTTP status code 200 is a well-known number.
@@ -51,14 +53,11 @@ class LLMConnector(ABC):
 
     def _preprocess_annotations(self, raw_annotations: str) -> str:
         "Remove LLM formatting that breaks JSON parsing if present"
+        return_value = raw_annotations
+        for p in self.annotation_processors:
+            return_value = p.process(return_value)
 
-        return_value = unicodedata.normalize("NFKC", raw_annotations)
-        # Markdown formatting, zero-width space
-        replacements = ["```json", "```", "\u200b"]
-        for r in replacements:
-            return_value = return_value.replace(r, "")
-
-        return return_value.strip()
+        return return_value
 
 
 class OpenRouterConnector(LLMConnector):
@@ -75,19 +74,15 @@ class OpenRouterConnector(LLMConnector):
                 {"role": "system", "content": self.config["prompt"]["system"]},
                 {"role": "user", "content": self.config["prompt"]["user"].format(html=doc["html"])},
             ],
-            "provider": {
-                # Gotcha: Reproducibility. Good for debugging,
-                # but different providers may be using different quantizations,
-                # leading to different results across runs.
-                "sort": "latency",
-            },
+            **({"provider": self.config["provider"]} if "provider" in self.config else {}),
+            **({"reasoning": self.config["reasoning"]} if "reasoning" in self.config else {}),
         }
 
     def _parse_response(self, response_text: str) -> dict[str, Any]:
         try:
             data = json.loads(response_text)
-            model_response = data["choices"][0]["message"]["content"]
-            annotations = self._preprocess_annotations(model_response)
+            model_response = data["choices"][0]["message"]
+            annotations = self._preprocess_annotations(model_response["content"])
             annotations = json.loads(annotations)["annotations"]
             total_tokens = data["usage"]["prompt_tokens"]
 
@@ -97,4 +92,6 @@ class OpenRouterConnector(LLMConnector):
         return {
             "annotations": annotations,
             "total_tokens": total_tokens,
+            **({"reasoning": model_response["reasoning"]} if "reasoning" in model_response else {}),
+            **({"provider": data["provider"]} if "provider" in data else {}),
         }

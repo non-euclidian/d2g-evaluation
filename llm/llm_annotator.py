@@ -85,7 +85,7 @@ def load_config(config: str) -> dict[str, Any]:
     try:
         config = json.loads(config)
         if "model" in config and config["model"] and isinstance(config["model"], str):
-            # keep last part of a name like 'deepseek/model-x1'
+            # use last part of model name like 'deepseek/model-x1' if experiment config not named explicitly
             config["model"] = config["model"].rstrip("/")  # edge case: trailing slash
             config_autoname = config["model"].split("/")[-1]
     except json.JSONDecodeError:
@@ -129,7 +129,7 @@ def load_config(config: str) -> dict[str, Any]:
 def get_output_path_for_config(filename: str, config: dict[str, Any]) -> str:
     return_value = Path("llm/.annotations") / config["name"] / filename
     # create missing directories if they don't exist yet.
-    # if they exist, do nothing.
+    # otherwise, do nothing.
     return_value.parent.mkdir(parents=True, exist_ok=True)
 
     return return_value
@@ -234,9 +234,14 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
                         "model": config["model"],
                         "task_id": doc["task_id"],
                         "duration_ms": duration_ms,
-                        "annotations": parsed_response["annotations"],
                         "total_tokens": parsed_response["total_tokens"],
+                        "annotations": parsed_response["annotations"],
                     }
+                    if "reasoning" in parsed_response:
+                        result["reasoning"] = parsed_response["reasoning"]
+                    if "provider" in parsed_response:
+                        result["provider"] = parsed_response["provider"]
+
                     async with output_lock:
                         save_jsonl_line(result, get_output_path_for_config(ANNOTATION_FILE, config))
                         processed.add(doc["task_id"])
