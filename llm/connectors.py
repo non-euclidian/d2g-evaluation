@@ -1,10 +1,19 @@
 import json
+import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
 import aiohttp
 
-from llm.preprocessors import FaultTolerantJsonPreprocessor, HtmlRemover
+from llm.preprocessors import (
+    FaultTolerantJsonPreprocessor,
+    HtmlDenoiserBase,
+    HtmlRemover,
+    LightHtmlDenoiser,
+    PassthroughDenoiser,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class RetryableAPIError(Exception):
@@ -18,6 +27,7 @@ class LLMConnector(ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.config = config
+        self.denoiser = self._get_html_denoiser_from_config()
         self.annotation_processors = [FaultTolerantJsonPreprocessor(), HtmlRemover()]
 
     @abstractmethod
@@ -51,6 +61,26 @@ class LLMConnector(ABC):
                 raise RetryableAPIError(f"Retryable API error {r.status}: {response_text}")  # noqa
             raise Exception(f"Non-retryable API error {r.status}: {response_text}")  # noqa
 
+    def _get_html_denoiser_from_config(self) -> HtmlDenoiserBase:
+        if self.config.get("html_denoiser") is None:
+            return PassthroughDenoiser()
+
+        supported_providers = {"light": LightHtmlDenoiser}
+
+        denoiser_name = self.config.get("html_denoiser")
+        if denoiser_name and denoiser_name not in supported_providers:
+            suggestions = ", ".join(supported_providers.keys())
+            error_message = f"Unsupported html_denoiser: {denoiser_name}. Pick one of: {suggestions}"
+            raise ValueError(error_message)
+
+        denoiser_cls = supported_providers[denoiser_name]
+        logger.info(f"Using {denoiser_cls}")  # noqa G004
+
+        return denoiser_cls()
+
+    def _get_html_from(self, doc: dict[str, Any]) -> str:
+        return self.denoiser.process(doc["html"])
+
     def _preprocess_annotations(self, raw_annotations: str) -> str:
         "Remove LLM formatting that breaks JSON parsing if present"
         return_value = raw_annotations
@@ -67,12 +97,13 @@ class OpenRouterConnector(LLMConnector):
         super().__init__("https://openrouter.ai/api/v1/chat/completions", api_key, config)
 
     def _create_payload_from(self, doc: dict[str, Any]) -> dict[str, Any]:
+        html = self._get_html_from(doc)
         return {
             "model": self.config["model"],
             "temperature": 0.0,
             "messages": [
                 {"role": "system", "content": self.config["prompt"]["system"]},
-                {"role": "user", "content": self.config["prompt"]["user"].format(html=doc["html"])},
+                {"role": "user", "content": self.config["prompt"]["user"].format(html=html)},
             ],
             **({"provider": self.config["provider"]} if "provider" in self.config else {}),
             **({"reasoning": self.config["reasoning"]} if "reasoning" in self.config else {}),
@@ -82,8 +113,8 @@ class OpenRouterConnector(LLMConnector):
         try:
             data = json.loads(response_text)
             model_response = data["choices"][0]["message"]
-            annotations = self._preprocess_annotations(model_response["content"])
-            annotations = json.loads(annotations)["annotations"]
+            response_content = self._preprocess_annotations(model_response["content"])
+            annotations = json.loads(response_content)["annotations"]
             total_tokens = data["usage"]["prompt_tokens"]
 
         except Exception as e:
@@ -91,6 +122,8 @@ class OpenRouterConnector(LLMConnector):
 
         return {
             "annotations": annotations,
+            # keep raw response for manual inspection/detecting bugs in preprocessing.
+            "annotations_raw": response_content,
             "total_tokens": total_tokens,
             **({"reasoning": model_response["reasoning"]} if "reasoning" in model_response else {}),
             **({"provider": data["provider"]} if "provider" in data else {}),

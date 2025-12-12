@@ -1,7 +1,8 @@
 import re
 import unicodedata
+from abc import ABC, abstractmethod
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 from json_repair import repair_json
 
 
@@ -42,13 +43,42 @@ class HtmlRemover:
         return soup.get_text(separator=" ", strip=True)
 
 
-class ReadabilityHtmlDenoiser:
+class HtmlDenoiserBase(ABC):
+    """Abstract preprocessor base class"""
+
+    @abstractmethod
+    def process(self, html: str) -> str: ...
+
+
+class PassthroughDenoiser(HtmlDenoiserBase):
+    """Keeps HTML intact"""
+
+    def process(self, html: str) -> str:
+        return html
+
+
+class LightHtmlDenoiser(HtmlDenoiserBase):
     """
-    Extracts main html document content to reduce annotation costs
+    Removes noise (scripts, css, etc.) from HTML to cut annotation costs
     and potentially improve LLM annotation quality.
-    This implementation is based on [Readability](https://github.com/buriy/python-readability)
 
     """
 
     def process(self, html: str) -> str:
-        raise NotImplementedError
+        remove_tags = ["script", "style", "nav", "noscript", "link", "meta", "iframe"]
+        remove_attrs = ["style", "onclick", "onload", "onerror"]
+
+        soup = BeautifulSoup(html, "lxml")
+
+        for tag in soup.find_all(remove_tags):
+            tag.decompose()
+
+        for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
+            comment.extract()
+
+        for tag in soup.find_all(recursive=True):
+            for attr in list(tag.attrs):
+                if attr in remove_attrs or attr.startswith("on"):
+                    del tag[attr]
+
+        return str(soup)

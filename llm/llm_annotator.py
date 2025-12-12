@@ -220,7 +220,6 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
             if doc["task_id"] in processed:
                 logger.info(f"Skipping task_id {doc['task_id']} (already processed)")  # noqa
                 return
-
             async with sem:
                 start_time = time.perf_counter()
                 try:
@@ -236,6 +235,7 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
                         "duration_ms": duration_ms,
                         "total_tokens": parsed_response["total_tokens"],
                         "annotations": parsed_response["annotations"],
+                        "annotations_raw": parsed_response["annotations_raw"],
                     }
                     if "reasoning" in parsed_response:
                         result["reasoning"] = parsed_response["reasoning"]
