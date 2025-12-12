@@ -14,8 +14,7 @@ class FaultTolerantJsonPreprocessor:
     """
 
     def process(self, raw_annotations: str) -> str:
-        return_value = repair_json(raw_annotations, ensure_ascii=False)
-        return_value = unicodedata.normalize("NFKC", return_value)
+        return_value = unicodedata.normalize("NFKC", raw_annotations)
         # remove control chars that can break potentially break JSON parsing.
         return_value = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\x80-\x9F\u2028\u2029]", "", return_value)
         # zero-width space
@@ -28,6 +27,8 @@ class FaultTolerantJsonPreprocessor:
             return re.sub(pattern, "", text).strip()
 
         return_value = strip_code_fences(return_value)
+
+        return_value = repair_json(return_value, ensure_ascii=False)
 
         return return_value.strip()
 
