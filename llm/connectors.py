@@ -101,6 +101,8 @@ class OpenRouterConnector(LLMConnector):
         return {
             "model": self.config["model"],
             "temperature": 0.0,
+            "top_k": 1,
+            "seed": 1337,
             "messages": [
                 {"role": "system", "content": self.config["prompt"]["system"]},
                 {"role": "user", "content": self.config["prompt"]["user"].format(html=html)},

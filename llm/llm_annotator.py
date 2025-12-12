@@ -139,7 +139,7 @@ def load_docs(path: str) -> list[dict[str, Any]]:
     logger.info(f"Loading dataset from {path}")  # noqa G004
     p = Path(path)
     if p.suffix == ".parquet":
-        df = pl.read_parquet(path)
+        df = pl.read_parquet(path).sort("task_id")
         return df.to_dicts()
     # Assume JSONL
     with p.open(encoding="utf-8") as f:
