@@ -9,6 +9,7 @@ Inputs:
     Example .config is included in containing directory.
 
 Outputs:
+- `config.json`: Copy of the annotation run configuration;
 - `results.jsonl`: LLM-generated main page content annotations;
 - `failures.jsonl`: Failed document log for debugging.
 
@@ -191,7 +192,7 @@ def get_connector_from_config(config: dict[str, Any]) -> LLMConnector:
 @retry(
     wait=wait_exponential(multiplier=3, min=5, max=30),
     stop=stop_after_attempt(MAX_RETRIES),
-    retry=retry_if_exception_type(RetryableAPIError),
+    retry=retry_if_exception_type(exception_types=(RetryableAPIError, TimeoutError)),
 )
 async def call_llm(
     connector: LLMConnector,
@@ -218,7 +219,7 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
                 logger.warning(f"Skipping invalid document: {doc}: missing 'task_id' or 'html' fields.")  # noqa
                 return
             if doc["task_id"] in processed:
-                logger.info(f"Skipping task_id {doc['task_id']} (already processed)")  # noqa
+                logger.debug(f"Skipping task_id {doc['task_id']} (already processed)")  # noqa
                 return
             async with sem:
                 start_time = time.perf_counter()
