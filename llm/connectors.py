@@ -74,7 +74,7 @@ class LLMConnector(ABC):
             raise ValueError(error_message)
 
         denoiser_cls = supported_providers[denoiser_name]
-        logger.info(f"Using {denoiser_cls}")  # noqa G004
+        logger.info(f"Using {denoiser_cls.__name__}")  # noqa G004
 
         return denoiser_cls()
 
