@@ -26,13 +26,12 @@ Notes:
 
 import argparse
 import asyncio
-import json
 import logging
 import os
+import sys
 import time
 import traceback
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -40,13 +39,11 @@ import polars as pl
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from llm.connectors import LLMConnector, OpenRouterConnector, RetryableAPIError
+from llm.evaluators import HumanVsLlmExperimentMetricsReport, RunStateReport
+from llm.storage import AnnotationRunStorage, InvalidRunStateError, RunContext
 
 # ============ Configuration ============
 API_KEY = str(os.getenv("LLM_API_KEY"))
-ANNOTATION_FILE = "results.jsonl"
-FAILURES_FILE = "failures.jsonl"
-RUN_CONFIG = "config.json"
-CONCURRENT_REQUESTS_DEFAULT = 5
 MAX_RETRIES = 5
 
 # ======================================
@@ -60,114 +57,6 @@ logger = logging.getLogger(__name__)
 
 
 # ---------- Helpers ----------
-
-
-def load_config(config: str) -> dict[str, Any]:
-    """
-    Load reproducible run configuration from the provided string.
-    Accepts either a dictionary or path to JSON configuration file.
-
-    Expected config keys:
-      - model (str)
-      - connector (str), e.g. 'openrouter'
-      - prompt (dict), including 'system' and 'user' prompts
-
-    Optional config keys:
-      - concurrent_requests (int). Used to prevent rate limiting. The default value is set in CONCURRENT_REQUESTS
-
-    Args:
-        config (str): Dictionary containing configuration values or path to the JSON config file.
-
-    Raises:
-        ValueError: If required keys are missing or have wrong types.
-    """
-    config_autoname = None
-
-    try:
-        config = json.loads(config)
-        if "model" in config and config["model"] and isinstance(config["model"], str):
-            # use last part of model name like 'deepseek/model-x1' if experiment config not named explicitly
-            config["model"] = config["model"].rstrip("/")  # edge case: trailing slash
-            config_autoname = config["model"].split("/")[-1]
-    except json.JSONDecodeError:
-        pass
-
-    if not isinstance(config, dict):
-        p = Path(config)
-        with p.open(encoding="utf-8") as f:
-            config = json.load(f)
-            config_autoname = p.name.replace(".config", "")
-
-    schema = {
-        "model": str,
-        "connector": str,
-        "concurrent_requests": int,
-        "prompt": dict,
-    }
-
-    if "concurrent_requests" not in config:
-        config["concurrent_requests"] = CONCURRENT_REQUESTS_DEFAULT
-
-    for key, expected_type in schema.items():
-        if key not in config:
-            raise ValueError(f"Missing required config key: {key}")  # noqa
-        # Convert to the right data type in-place
-        try:
-            config[key] = expected_type(config[key])
-        except (ValueError, TypeError) as err:
-            raise ValueError(  # noqa
-                f"Config key {key} must be of type {expected_type.__name__}, got {config[key]}"  # noqa
-            ) from err
-
-    if "name" not in config or not config["name"]:
-        logger.warning(f"'name' missing from config. Using {config_autoname} as experiment name instead. ")  # noqa G004
-        config["name"] = config_autoname
-    logger.info(f"Loaded config {config}")  # noqa G004
-
-    return config
-
-
-def get_output_path_for_config(filename: str, config: dict[str, Any]) -> str:
-    return_value = Path("llm/.annotations") / config["name"] / filename
-    # create missing directories if they don't exist yet.
-    # otherwise, do nothing.
-    return_value.parent.mkdir(parents=True, exist_ok=True)
-
-    return return_value
-
-
-def load_docs(path: str) -> list[dict[str, Any]]:
-    logger.info(f"Loading dataset from {path}")  # noqa G004
-    p = Path(path)
-    if p.suffix == ".parquet":
-        df = pl.read_parquet(path).sort("task_id")
-        return df.to_dicts()
-    # Assume JSONL
-    with p.open(encoding="utf-8") as f:
-        return [json.loads(line) for line in f]
-
-
-def load_processed_ids(path: str) -> set[str]:
-    """Return task_ids already processed successfully, so that they can be skipped."""
-    logger.info(f"Loading existing LLM annotations from {path}")  # noqa G004
-    p = Path(path)
-    if not p.exists():
-        return set()
-    with p.open(encoding="utf-8") as f:
-        processed = set()
-        for line in f:
-            try:
-                processed.add(json.loads(line)["task_id"])
-            except json.JSONDecodeError:
-                logger.warning(f"Skipping malformed JSON line in {path}")  # noqa G004
-        return processed
-
-
-def save_jsonl_line(obj: dict, path: str) -> None:
-    """Append a single JSON object as a line."""
-    p = Path(path)
-    with p.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
 def get_connector_from_config(config: dict[str, Any]) -> LLMConnector:
@@ -205,13 +94,17 @@ async def call_llm(
 # ---------- Processing Loop ----------
 
 
-async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> None:
-    processed = load_processed_ids(get_output_path_for_config(ANNOTATION_FILE, config))
+async def process_docs(
+    docs: list[dict[str, Any]],
+    ds_metadata: dict,
+    storage: AnnotationRunStorage,
+    context: RunContext,
+) -> None:
+    processed = storage.load_processed_ids(context.run_id)
+    config = context.run_config
+    processed_lock = asyncio.Lock()
     sem = asyncio.Semaphore(config["concurrent_requests"])
-    output_lock = asyncio.Lock()
-    fail_lock = asyncio.Lock()
     connector = get_connector_from_config(config)
-
     async with aiohttp.ClientSession() as session:
 
         async def worker(doc: dict[str, Any]) -> None:
@@ -242,29 +135,32 @@ async def process_docs(docs: list[dict[str, Any]], config: dict[str, Any]) -> No
                         result["reasoning"] = parsed_response["reasoning"]
                     if "provider" in parsed_response:
                         result["provider"] = parsed_response["provider"]
-
-                    async with output_lock:
-                        save_jsonl_line(result, get_output_path_for_config(ANNOTATION_FILE, config))
+                    await storage.save_annotation(result, context)
+                    async with processed_lock:
                         processed.add(doc["task_id"])
                     logger.info(f"Processed {doc['task_id']}")  # noqa
                 except Exception as e:  # noqa BLE001
                     timestamp = datetime.now(UTC).strftime("%d/%m/%Y %H:%M:%S")
                     traceback_text = traceback.format_exc()
-                    async with fail_lock:
-                        save_jsonl_line(
-                            {
-                                "timestamp": timestamp,
-                                "config": config["name"],
-                                "model": config["model"],
-                                "task_id": doc["task_id"],
-                                "error": f"{e}\n{traceback_text}",
-                            },
-                            get_output_path_for_config(FAILURES_FILE, config),
-                        )
+                    await storage.log_failed_doc(
+                        {
+                            "timestamp": timestamp,
+                            "config": config["name"],
+                            "model": config["model"],
+                            "task_id": doc["task_id"],
+                            "error": f"{e}\n{traceback_text}",
+                        },
+                        context,
+                    )
 
                     logger.error(f"Failed {doc.get('task_id')}: {e}\n{traceback_text}")  # noqa
 
         await asyncio.gather(*(worker(doc) for doc in docs))
+
+        run_metadata = ds_metadata.copy()
+        run_metadata["config"] = config
+        run_metadata["config_hash"] = config["hash"]
+        storage.save_run_metadata(run_metadata, context)
 
 
 # ---------- Entry Point ----------
@@ -280,6 +176,13 @@ def parse_args() -> argparse.Namespace:
         help="Path to input file (.jsonl or .parquet).",
     )
 
+    parser.add_argument(
+        "--out_dir",
+        "-od",
+        default="llm/.scratch",
+        help="Experiment output root folder.",
+    )
+
     parser.add_argument("--config", "-c", required=True, help="Path to config file.")
 
     parser.add_argument(
@@ -287,7 +190,16 @@ def parse_args() -> argparse.Namespace:
         "-m",
         type=int,
         default=None,
-        help="Caps the number of documents to be processed. Useful for debugging.",
+        help="Caps the number of documents to be annotated. Useful for debugging.",
+    )
+
+    parser.add_argument(
+        "--n_runs",
+        "-n",
+        type=int,
+        default=1,
+        help="Specify how many times annotation experiment should be repeated. "
+        "Useful for computing averaged metrics over varying API responses for the same input docs.",
     )
 
     return parser.parse_args()
@@ -295,12 +207,38 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
-    config = load_config(args.config)
-    docs = load_docs(args.input)[: args.max_docs]
+    # Since APIs/LLMs may and will fail, subsequent launches
+    # will resume all existing runs to cut costs/time.
+    # Every existing experiment run is resumed until all input docs are processed
+    # and n_runs is satisfied.
+    n_runs = max(1, args.n_runs)
+    try:
+        storage = AnnotationRunStorage(args.out_dir, args.config)
+    except InvalidRunStateError as e:
+        logger.fatal(e)
+        sys.exit(1)
+
+    docs, ds_metadata = storage.load_dataset(args.input)
+    docs = docs[: args.max_docs]
     logger.info(f"Loaded {len(docs)} documents")  # noqa G004
-    # copy config to experimental run directory for reproducibility
-    run_config_path = get_output_path_for_config(RUN_CONFIG, config)
-    with Path.open(run_config_path, "w") as f:
-        json.dump(config, f, indent=2)
-    asyncio.run(process_docs(docs, config))
+    previous_runs = storage.list_all_runs()
+    run_counter = 0
+
+    for run_id in previous_runs:
+        logger.info(f"Resuming run: {run_id}")  # noqa G004
+        context = storage.get_runcontext_for(run_id)
+        asyncio.run(process_docs(docs, ds_metadata, storage, context))
+        run_counter += 1
+    while n_runs - run_counter > 0:
+        logger.info(f"Starting new run: {run_id}")  # noqa G004
+        context = storage.get_new_runcontext()
+        asyncio.run(process_docs(docs, ds_metadata, storage, context))
+        run_counter += 1
+
+    with pl.Config(fmt_str_lengths=10**5):
+        run_state_report = RunStateReport().generate(storage=storage).__repr__()
+        storage.save_experiment_artefact(run_state_report, "run_state.txt")
+        metric_report = HumanVsLlmExperimentMetricsReport().generate(storage=storage).__repr__()
+        storage.save_experiment_artefact(metric_report, "metrics.txt")
+
     logger.info("Processing complete.")
