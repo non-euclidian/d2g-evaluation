@@ -117,7 +117,6 @@ class OpenRouterConnector(LLMConnector):
             model_response = data["choices"][0]["message"]
             response_content = self._preprocess_annotations(model_response["content"])
             annotations = json.loads(response_content)["annotations"]
-            total_tokens = data["usage"]["prompt_tokens"]
 
         except Exception as e:
             raise ValueError(f"Couldn't process API server response:\n{response_text}") from e  # noqa
@@ -126,7 +125,9 @@ class OpenRouterConnector(LLMConnector):
             "annotations": annotations,
             # keep raw response for manual inspection/detecting bugs in preprocessing.
             "annotations_raw": response_content,
-            "total_tokens": total_tokens,
+            "prompt_tokens": data["usage"]["prompt_tokens"],
+            "completion_tokens": data["usage"]["completion_tokens"],
+            "total_tokens": data["usage"]["total_tokens"],
             **({"reasoning": model_response["reasoning"]} if "reasoning" in model_response else {}),
             **({"provider": data["provider"]} if "provider" in data else {}),
         }
