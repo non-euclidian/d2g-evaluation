@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class RunStateReport:
-    """Generates an overview of all runs of a given experiment:
+    """
+    Generates an overview of all runs of a given experiment:
     - Configuration file and dataset hashes to detect any unintended contamination;
     - Total docs processed.
     """

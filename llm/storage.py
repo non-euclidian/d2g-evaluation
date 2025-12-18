@@ -109,6 +109,9 @@ class AnnotationRunStorage:
 
     def list_all_runs(self) -> list[str]:
         base = self.base_path / "runs" / self.run_config["name"]
+        if not base.exists():
+            return []
+
         return [f.name for f in base.iterdir() if f.is_dir()]
 
     def get_run_path_for(self, context: RunContext) -> Path:

@@ -230,8 +230,8 @@ if __name__ == "__main__":
         asyncio.run(process_docs(docs, ds_metadata, storage, context))
         run_counter += 1
     while n_runs - run_counter > 0:
-        logger.info(f"Starting new run: {run_id}")  # noqa G004
         context = storage.get_new_runcontext()
+        logger.info(f"Starting new run: {context.run_id}")  # noqa G004
         asyncio.run(process_docs(docs, ds_metadata, storage, context))
         run_counter += 1
 
