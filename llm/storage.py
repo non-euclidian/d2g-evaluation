@@ -175,11 +175,13 @@ class AnnotationRunStorage:
         """
 
         path = Path(config)
-
-        if path.is_file():  # noqa SIM108 this is more readable
-            return_value = self._load_config_from_path(path)
-        else:
-            return_value = self._load_config_from_json(config)
+        try:
+            if path.is_file():  # noqa SIM108 this is more readable
+                return_value = self._load_config_from_path(path)
+            else:
+                return_value = self._load_config_from_json(config)
+        except Exception as e:
+            raise ValueError(f"Failed to load config from: {config}") from e
 
         # set defaults
         if "concurrent_requests" not in return_value:
@@ -196,6 +198,8 @@ class AnnotationRunStorage:
         return return_value
 
     def _load_config_from_path(self, config_path: Path) -> dict[str, Any]:
+        if not Path.exists(config_path):
+            raise ValueError("Path not found: {config_path}")
         with config_path.open(encoding="utf-8") as f:
             return_value = json.load(f)
             config_autoname = config_path.name.replace(".config", "")
