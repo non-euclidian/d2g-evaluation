@@ -12,6 +12,7 @@ from llm.preprocessors import (
     LightHtmlDenoiser,
     PassthroughDenoiser,
 )
+from llm.storage import AnnotationRunStorage, RunContext
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +41,17 @@ class LLMConnector(ABC):
         """Extracts annotations from API response."""
         ...
 
+    # fmt: off
     async def call_llm(
         self,
         session: aiohttp.ClientSession,
         doc: dict[str, Any],
+        context: RunContext,
+        storage: AnnotationRunStorage
     ) -> dict[str, Any]:
+    # fmt: on
         payload = self._create_payload_from(doc)
+        await storage.save_request(doc["task_id"], payload, context)
 
         async with session.post(
             self.base_url,
@@ -54,6 +60,7 @@ class LLMConnector(ABC):
             timeout=180,  # type: ignore[arg-type]
         ) as r:
             response_text = await r.text()
+            await storage.save_response(doc["task_id"], response_text, context)
             if r.status == 200:  # noqa PLR2004 No magic: HTTP status code 200 is a well-known number.
                 return self._parse_response(response_text)
 

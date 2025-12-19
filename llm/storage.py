@@ -32,6 +32,7 @@ class AnnotationRunStorage:
         self.run_config = self._load_config(config)
         self._annotation_lock = asyncio.Lock()
         self._failure_lock = asyncio.Lock()
+        self._response_lock = asyncio.Lock()
 
     def get_runcontext_for(self, run_id: str) -> RunContext:
         return RunContext(self.run_config, run_id)
@@ -75,6 +76,9 @@ class AnnotationRunStorage:
 
     def load_annotations(self, context: RunContext) -> pl.DataFrame:
         result_path = self.base_path / "runs" / self.run_config["name"] / context.run_id / "results.jsonl"
+        if not result_path.exists():
+            return pl.DataFrame([])
+
         with result_path.open(encoding="utf-8") as f:
             llm_annotations = [json.loads(line) for line in f]
         return pl.DataFrame(llm_annotations)
@@ -90,6 +94,28 @@ class AnnotationRunStorage:
         fail_path.parent.mkdir(parents=True, exist_ok=True)
         async with self._failure_lock:
             self._save_jsonl_line(fail_event, fail_path)
+
+    async def save_response(self, task_id: int, response: str, context: RunContext) -> None:
+        response_path = self.base_path / "runs" / context.run_config["name"] / context.run_id / "responses.jsonl"
+        response_path.parent.mkdir(parents=True, exist_ok=True)
+        async with self._response_lock:
+            entry = {
+                "task_id": task_id,
+                "timestamp": datetime.now(UTC).strftime("%d/%m/%Y %H:%M:%S"),
+                "api_response": response,
+            }
+            self._save_jsonl_line(entry, response_path)
+
+    async def save_request(self, task_id: int, request_payload: dict[str, Any], context: RunContext) -> None:
+        response_path = self.base_path / "runs" / context.run_config["name"] / context.run_id / "requests.jsonl"
+        response_path.parent.mkdir(parents=True, exist_ok=True)
+        async with self._response_lock:
+            entry = {
+                "task_id": task_id,
+                "timestamp": datetime.now(UTC).strftime("%d/%m/%Y %H:%M:%S"),
+                "payload": request_payload,
+            }
+            self._save_jsonl_line(entry, response_path)
 
     def save_experiment_artefact(self, contents: str, filename: str) -> None:
         p = self.base_path / "runs" / self.run_config["name"] / filename

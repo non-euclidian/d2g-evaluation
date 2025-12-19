@@ -87,8 +87,10 @@ async def call_llm(
     connector: LLMConnector,
     session: aiohttp.ClientSession,
     doc: dict[str, Any],
+    context: RunContext,
+    storage: AnnotationRunStorage,
 ) -> dict[str, Any]:
-    return await connector.call_llm(session, doc)
+    return await connector.call_llm(session, doc, context, storage)
 
 
 # ---------- Processing Loop ----------
@@ -117,7 +119,7 @@ async def process_docs(
             async with sem:
                 start_time = time.perf_counter()
                 try:
-                    parsed_response = await call_llm(connector, session, doc)
+                    parsed_response = await call_llm(connector, session, doc, context, storage)
                     duration_ms = (time.perf_counter() - start_time) * 1000
                     duration_ms = round(duration_ms)
                     timestamp = datetime.now(UTC).strftime("%d/%m/%Y %H:%M:%S")
