@@ -9,18 +9,27 @@ Inputs:
     Example .config is included in containing directory.
 
 Outputs:
-- `config.json`: Copy of the annotation run configuration;
-- `results.jsonl`: LLM-generated main page content annotations;
-- `failures.jsonl`: Failed document log for debugging.
+- `.{outputfolder}/configs/{experimentname}.config`: Copy of the experiment configuration settings;
+- `.{outputfolder}/runs/{experimentname}/{run_id}/results.jsonl`: LLM-generated main page content annotations;
+- `.{outputfolder}/runs/{experimentname}/{run_id}/failures.jsonl`: API responses for documents that failed;
+- `.{outputfolder}/runs/{experimentname}/{run_id}/metadata.json`: used dataset, config names and hashes;
+- `.{outputfolder}/runs/{experimentname}/{run_id}/requests.jsonl`: Raw API HTTP request payload;
+- `.{outputfolder}/runs/{experimentname}/{run_id}/responses.jsonl`: Raw API HTTP responses;
+- `.{outputfolder}/runs/{experimentname}/metrics.txt` - Evaluation metrics report
+- `.{outputfolder}/runs/{experimentname}/run_state.txt` - Experiment progress summary - total docs annotated, configs, dataset, runs.
 
 Notes:
-- Outputs are stored in llm/.annotations/{config_name}/{output}.jsonl;
+- By default outputs are stored in llm/.scratch/runs/{config_name}/;
 - Requests are asynchronous to reduce time spent waiting for results;
-- This annotator has built-in automatic retry logic with exponential backoff and max retry limit;
+- Supports multi-run experiments for metric averaging over stochastic outputs;
+- Raw requests and API responses are logged for quality control and in case document reprocessing is needed;
+- Has built-in automatic retry logic with exponential backoff and max retry limit;
 - Max concurrent requests are capped (configurable) to avoid API throttling;
-- If restarted after a crash, it will process only yet unannotated HTML docs from the input file to save API credits and wall time.\
-    This is achieved by checking the documents already present in `results.jsonl` via the `task_id`.\
+- If restarted after an error, will process only yet unannotated HTML docs to save API credits and wall time.\
+    This is achieved by checking the documents already present in `results.jsonl` via the `task_id`.
     Deleting this file will cause the entire HTML collection to be reprocessed from scratch.
+- When restarting an experiment with pre-existing results,
+    validates that config has not been tampered with to avoid result contamination.
 
 """
 
