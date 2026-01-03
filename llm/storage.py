@@ -122,6 +122,16 @@ class AnnotationRunStorage:
         with Path.open(p, "w", encoding="utf-8") as f:
             f.write(contents)
 
+    def load_run_artefact(self, run_id: str, artefact_name: str) -> pl.DataFrame:
+        p = Path(self.base_path) / "runs" / self.run_config["name"] / run_id / artefact_name
+        if not p.exists():
+            return pl.DataFrame([])
+
+        with p.open(encoding="utf-8") as f:
+            llm_annotations = [json.loads(line) for line in f]
+
+        return pl.DataFrame(llm_annotations)
+
     def load_metadata(self, run_id: str) -> dict[str, Any]:
         p = Path(self.base_path) / "runs" / self.run_config["name"] / run_id / "metadata.json"
         with p.open(encoding="utf-8") as f:
