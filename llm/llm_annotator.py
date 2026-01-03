@@ -47,7 +47,7 @@ import aiohttp
 import polars as pl
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from llm.connectors import LLMConnector, OpenRouterConnector, RetryableAPIError
+from llm.connectors import LLMConnector, OpenAIConnector, OpenRouterConnector, RetryableAPIError
 from llm.evaluators import HumanVsLlmExperimentMetricsReport, RunStateReport
 from llm.storage import AnnotationRunStorage, InvalidRunStateError, RunContext
 
@@ -75,6 +75,7 @@ def get_connector_from_config(config: dict[str, Any]) -> LLMConnector:
 
     supported_providers = {
         "openrouter": OpenRouterConnector,
+        "openai": OpenAIConnector,
     }
 
     connector_cls = supported_providers.get(connector_name)
@@ -218,6 +219,7 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
+
     # Since APIs/LLMs may and will fail, subsequent launches
     # will resume all existing runs to cut costs/time.
     # Every existing experiment run is resumed until all input docs are processed

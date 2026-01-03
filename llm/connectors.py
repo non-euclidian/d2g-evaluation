@@ -138,3 +138,67 @@ class OpenRouterConnector(LLMConnector):
             **({"reasoning": model_response["reasoning"]} if "reasoning" in model_response else {}),
             **({"provider": data["provider"]} if "provider" in data else {}),
         }
+
+
+class OpenAIConnector(LLMConnector):
+    """Gathers annotations from OpenAI API"""
+
+    def __init__(self, api_key: str, config: dict[str, Any]) -> None:
+        super().__init__("https://api.openai.com/v1/responses", api_key, config)
+
+    def _create_payload_from(self, doc: dict[str, Any]) -> dict[str, Any]:
+        html = self._get_html_from(doc)
+        # fmt: off
+        return {
+            "model": self.config["model"],
+            # Some Open AI models don't support setting temperature.
+            # But they do support setting top_p
+            "top_p": 0,
+            "stream": False,
+            "input": [
+                {
+                    "role": "developer",
+                    "content": [
+                        {"type": "input_text", "text": self.config["prompt"]["system"]}
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": self.config["prompt"]["user"].format(html=html)}
+                    ]
+                }
+            ],
+            **({"reasoning": self.config["reasoning"]} if "reasoning" in self.config else {}),
+            **({"max_output_tokens": self.config["max_output_tokens"]} if "max_output_tokens" in self.config else {}),
+        }
+        # fmt: on
+
+    def _parse_response(self, response_text: str) -> dict[str, Any]:
+        try:
+            data = json.loads(response_text)
+
+            # Find the assistant message
+            message = next(
+                item for item in data["output"] if item.get("type") == "message" and item.get("role") == "assistant"
+            )
+
+            # Extract text content (Responses API supports multiple content blocks)
+            response_content = "".join(
+                block["text"] for block in message.get("content", []) if block.get("type") == "output_text"
+            )
+
+            response_content = self._preprocess_annotations(response_content)
+            annotations = json.loads(response_content)["annotations"]
+        except Exception as e:
+            raise ValueError(f"Couldn't process OpenAI API response:\n{response_text}") from e  # noqa
+        usage = data.get("usage", {})
+
+        return {
+            "annotations": annotations,
+            "annotations_raw": response_content,
+            "prompt_tokens": usage.get("input_tokens"),
+            "completion_tokens": usage.get("output_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+            **({"reasoning": message["reasoning"]} if "reasoning" in message else {}),
+        }

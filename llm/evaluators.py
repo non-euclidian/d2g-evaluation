@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import polars as pl
 from datasets import Dataset
@@ -166,3 +167,40 @@ class HumanVsLlmExperimentMetricsReport:
 
     def _merge_annotations(self, x: list[dict[str, str]]) -> str:
         return " ".join([str(k.get("text", "")) for k in x])
+
+
+class HumanVsLlmSummaryReport:
+    """Reports Human vs LLM comparison metrics
+    across all experiments, row per config/model.
+    """
+
+    def generate(self, experiment_base_path: str) -> pl.DataFrame:
+        # fmt:off
+        logger.debug(
+            f"Generating overview report for all experiments in {experiment_base_path}" # noqa
+            )
+        # fmt: on
+        root = Path(experiment_base_path)
+        if not root.exists():
+            raise FileNotFoundError(f"Path {experiment_base_path} not found.")  # noqa
+        experiment_report = HumanVsLlmExperimentMetricsReport()
+        run_path = root / "runs"
+        experiment_names = [p.name for p in run_path.iterdir() if p.is_dir()]
+        schema = None
+        rows = []
+        for n in experiment_names:
+            storage = AnnotationRunStorage(base_path=experiment_base_path, config=root / "configs" / f"{n}.config")
+            single_eval = experiment_report.generate(storage)
+            mean_row = list(single_eval.tail(1).row(0))
+            mean_row[0] = n
+            rows.append(mean_row)
+            if not schema:
+                schema = single_eval.schema
+        # fmt: off
+        return_value = pl.DataFrame(rows, schema)\
+            .rename({"run_id": "experiment"})\
+            .sort("f1", descending=True)
+        # fmt: on
+
+        print(return_value)
+        return return_value
