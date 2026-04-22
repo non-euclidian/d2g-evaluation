@@ -136,3 +136,11 @@ class MetricRegistry(Enum):
         fully_symmetric=False,
         description="dummy description",
     )
+    RATCLIFF_OBERSHELP_TOKEN_MATCHING = MetricConfig(
+        name=ImplementedCustomMetrics.RATCLIFF_OBERSHELP_TOKEN_MATCHING,
+        backend=MetricBackend.OTHER,
+        works_with=InputFormat.TOKEN,
+        output_type=FScoreMetricResult,
+        fully_symmetric=True,
+        description="dummy description",
+    )

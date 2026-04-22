@@ -217,3 +217,5 @@ no_demo
 only_pipelines.ipynb
 demo.ipynb
 .vscode
+cleaning.ipynb
+all.ipynb
